@@ -1,0 +1,5 @@
+asset,origin,license,credit,path,modifications,status
+World geometry,Original procedural GDScript,Original project code,None,Main.gd,Static boxes merged by material,Created
+Static character,Original procedural GDScript,Original project code,None,Main.gd,Low-poly mesh parts merged by material,Created
+Asphalt tile,Procedural periodic noise generated in this project,Original generated texture,None,assets/asphalt_tile.png,128x128 seamless albedo,Created
+Grass tile,Procedural periodic noise generated in this project,Original generated texture,None,assets/grass_tile.png,128x128 seamless albedo,Created
