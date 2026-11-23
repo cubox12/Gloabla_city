@@ -29,6 +29,8 @@ void CityWorld::add_box(const Vec3& c, const Vec3& h, const Color& color, bool s
 }
 
 void CityWorld::reset() {
+    ++static_geometry_revision_;
+    if (static_geometry_revision_ == 0) ++static_geometry_revision_;
     static_boxes_.clear();
     buildings_.clear();
     player_position_ = {};
@@ -122,10 +124,13 @@ void CityWorld::update(float delta, const InputState& input) {
     else player_velocity_.z=0;
 }
 
-void CityWorld::gather_draw_boxes(std::vector<Box>& out) const {
-    out=static_boxes_;
-    out.push_back({{player_position_.x,1.02f,player_position_.z},{0.34f,0.56f,0.24f},{0.15f,0.42f,0.67f,1},false});
-    out.push_back({{player_position_.x,1.78f,player_position_.z},{0.22f,0.22f,0.22f},{0.78f,0.57f,0.42f,1},false});
+void CityWorld::gather_dynamic_draw_boxes(std::vector<Box>& out) const {
+    out.clear();
+    out.reserve(12);
+    out.push_back({{player_position_.x,1.02f,player_position_.z},
+                   {0.34f,0.56f,0.24f},{0.15f,0.42f,0.67f,1},false});
+    out.push_back({{player_position_.x,1.78f,player_position_.z},
+                   {0.22f,0.22f,0.22f},{0.78f,0.57f,0.42f,1},false});
     for (int i=0;i<5;++i) {
         const float phase=npc_elapsed_*0.18f+static_cast<float>(i)*1.25663706f;
         const float radius=23.0f+static_cast<float>(i%2)*3.0f;
@@ -134,6 +139,13 @@ void CityWorld::gather_draw_boxes(std::vector<Box>& out) const {
         out.push_back({{x,0.92f,z},{0.24f,0.46f,0.24f},shirt,false});
         out.push_back({{x,1.55f,z},{0.18f,0.18f,0.18f},{0.78f,0.57f,0.42f,1},false});
     }
+}
+
+void CityWorld::gather_draw_boxes(std::vector<Box>& out) const {
+    out = static_boxes_;
+    std::vector<Box> dynamic_boxes;
+    gather_dynamic_draw_boxes(dynamic_boxes);
+    out.insert(out.end(), dynamic_boxes.begin(), dynamic_boxes.end());
 }
 
 bool CityWorld::player_intersects_building() const noexcept {
