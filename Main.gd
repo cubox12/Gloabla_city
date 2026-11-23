@@ -320,6 +320,8 @@ func _make_camera() -> void:
 	camera_pivot.add_child(city_camera)
 	city_camera.look_at(Vector3.ZERO, Vector3.UP)
 	city_camera.current = true
+	if player != null:
+		player.set("camera_pivot", camera_pivot)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
