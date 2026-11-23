@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5 — movilidad, peatones y materiales
+
+- El personaje ahora usa CharacterBody3D, colisión cápsula, aceleración y movimiento direccional relativo a la cámara.
+- Añadidos controles táctiles en pantalla y teclado WASD/flechas.
+- La cámara sigue al personaje conservando giro y zoom.
+- Añadidos cinco peatones low-poly con recorridos circulares ligeros.
+- Añadida colisión física del suelo.
+- Aceras con textura procedural de concreto; el generador crea también una textura de pavimento.
+- El personaje y los NPC mantienen geometría sencilla y sin animaciones costosas.
+- Sin mediciones FPS reales; pendiente probar en Android físico.
+
 ## 0.4 — city planning and mobile camera
 
 - Added 16 empty, subtly tinted parcel pads with thin borders, merged into two static material batches. No buildings have been placed.
