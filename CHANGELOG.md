@@ -39,3 +39,11 @@
 - Disabled dynamic directional-light shadows in the low-cost baseline.
 - Added art direction, asset provenance, ignore rules and a static validation script.
 - Kept the player character immobile and did not add buildings, vehicles, traffic or gameplay controls.
+
+
+## 0.6 — Primera ciudad construida
+- Sustituye las parcelas vacías por 16 edificios low-poly con alturas y fachadas variadas.
+- Añade ventanas, entradas y colisiones para impedir que el jugador atraviese los edificios.
+- Añade árboles estilizados, farolas y bancas con geometría agrupada por material.
+- Conserva controles móviles, peatones, calles y texturas de la versión anterior.
+- Perfil gráfico Godot Compatibility para Android; falta medir rendimiento en dispositivo real.
