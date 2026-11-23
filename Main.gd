@@ -122,7 +122,6 @@ func _make_parcels() -> void:
 	var plot_boxes: Array[Dictionary] = []
 	var edge_boxes: Array[Dictionary] = []
 	var plot_width := ROAD_SPACING - (SIDEWALK_OFFSET * 2.0) - 0.8
-	var plot_center_offset := ROAD_SPACING * 0.5
 	for x_index in range(-2, 2):
 		for z_index in range(-2, 2):
 			var center := Vector3(
