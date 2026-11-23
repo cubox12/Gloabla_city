@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace global_engine {
@@ -28,6 +29,13 @@ public:
     CityWorld();
     void reset();
     void update(float delta_seconds, const InputState& input);
+
+    // Static geometry is immutable between resets and can remain resident on the GPU.
+    const std::vector<Box>& static_draw_boxes() const noexcept { return static_boxes_; }
+    std::uint64_t static_geometry_revision() const noexcept { return static_geometry_revision_; }
+
+    // Dynamic geometry is regenerated into caller-owned storage to reuse its capacity.
+    void gather_dynamic_draw_boxes(std::vector<Box>& output) const;
     void gather_draw_boxes(std::vector<Box>& output) const;
 
     const Vec3& player_position() const noexcept { return player_position_; }
@@ -46,6 +54,7 @@ private:
     Vec3 player_velocity_{0.0f, 0.0f, 0.0f};
     float npc_elapsed_{0.0f};
     std::size_t building_count_{0};
+    std::uint64_t static_geometry_revision_{0};
 };
 
 } // namespace global_engine
