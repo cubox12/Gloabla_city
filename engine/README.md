@@ -16,14 +16,17 @@ ctest --test-dir build-engine --output-on-failure
 - Geometría de terreno, calles, aceras y mobiliario urbano.
 - Movimiento del jugador con aceleración.
 - Colisiones AABB para que el jugador no atraviese edificios.
-- Datos de renderizado agrupados en una lista de cajas.
+- Geometría estática separada de la geometría dinámica.
+- La ciudad estática se convierte a vértices y se sube una vez a la GPU por revisión del mundo.
+- Un búfer de streaming separado se reserva para el jugador y los peatones.
 - Cinco peatones con movimiento ambiental sencillo.
 
 ## Próximos sistemas
-1. Plataforma Android NativeActivity y renderizador OpenGL ES 3.
-2. Buffer estático para geometría de ciudad y buffer dinámico para entidades.
-3. Cámara móvil y controles multitáctiles.
-4. Cargador de recursos glTF, texturas y materiales.
-5. Escenas serializadas, audio, animaciones y herramientas de depuración.
+1. Renderizado por sectores de ciudad con frustum culling.
+2. LOD de edificios, mobiliario y vehículos según distancia.
+3. Sistema de escenas/entidades y recursos.
+4. Cargador de recursos glTF/GLB, texturas y materiales.
+5. Streaming de sectores para ampliar el mundo sin cargar toda la ciudad a la vez.
+6. Audio, animaciones y herramientas de depuración.
 
 El núcleo sí tiene pruebas C++ automatizadas. Todavía no es un editor ni un motor general completo; es la base del runtime específico para GLOBAL CITY.
