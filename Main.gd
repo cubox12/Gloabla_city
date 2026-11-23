@@ -1,16 +1,18 @@
 extends Node3D
 
-# GLOBAL CITY 0.4 — mobile-friendly city-planning prototype.
-# The player remains deliberately static. Geometry is batched by material.
+# GLOBAL CITY 0.5 — mobile movement, ambient pedestrians and richer surface materials.
 
 const WORLD_SIZE: float = 140.0
 const ROAD_WIDTH: float = 10.0
 const ROAD_SPACING: float = 34.0
 const SIDEWALK_WIDTH: float = 2.2
 const SIDEWALK_OFFSET: float = ROAD_WIDTH * 0.5 + 1.4
-const CAMERA_MIN_DISTANCE: float = 58.0
-const CAMERA_MAX_DISTANCE: float = 155.0
+const CAMERA_MIN_DISTANCE: float = 18.0
+const CAMERA_MAX_DISTANCE: float = 75.0
 const CAMERA_DRAG_SENSITIVITY: float = 0.0045
+const NPC_COUNT: int = 5
+const PlayerController = preload("res://Player.gd")
+const PedestrianController = preload("res://Pedestrian.gd")
 
 var mat_ground: StandardMaterial3D
 var mat_road: StandardMaterial3D
@@ -18,6 +20,10 @@ var mat_sidewalk: StandardMaterial3D
 var mat_line: StandardMaterial3D
 var mat_parcel: StandardMaterial3D
 var mat_parcel_edge: StandardMaterial3D
+var mat_npc: StandardMaterial3D
+var mat_concrete: StandardMaterial3D
+var player: CharacterBody3D
+var pedestrians: Array[Node3D] = []
 var mat_skin: StandardMaterial3D
 var mat_shirt: StandardMaterial3D
 var mat_pants: StandardMaterial3D
@@ -31,11 +37,13 @@ var mouse_dragging: bool = false
 
 func _ready() -> void:
 	_make_materials()
+	_setup_input_actions()
 	_make_environment()
 	_make_ground()
 	_make_roads()
 	_make_parcels()
-	_make_static_character()
+	_make_player()
+	_make_pedestrians()
 	_make_camera()
 	_make_sun()
 	_make_hud()
@@ -47,6 +55,8 @@ func _make_materials() -> void:
 	mat_line = _make_material(Color("#f2e9c9"))
 	mat_parcel = _make_material(Color("#9db783"))
 	mat_parcel_edge = _make_material(Color("#718d61"))
+	mat_npc = _make_material(Color("#b56a45"))
+	mat_concrete = _make_material(Color("#ffffff"), "res://assets/concrete_tile.png", Vector3(5.0, 5.0, 1.0))
 	mat_skin = _make_material(Color("#d9a078"))
 	mat_shirt = _make_material(Color("#2676a8"))
 	mat_pants = _make_material(Color("#263448"))
@@ -104,7 +114,7 @@ func _make_roads() -> void:
 			_add_box_spec(sidewalk_boxes, Vector3(WORLD_SIZE, 0.18, SIDEWALK_WIDTH), Vector3(0.0, 0.115, road_offset + side * edge))
 	_add_crosswalks(marking_boxes)
 	_make_box_batch("RoadBatch", road_boxes, mat_road)
-	_make_box_batch("SidewalkBatch", sidewalk_boxes, mat_sidewalk)
+	_make_box_batch("SidewalkBatch", sidewalk_boxes, mat_concrete)
 	_make_box_batch("RoadMarkingsBatch", marking_boxes, mat_line)
 
 func _add_crosswalks(target: Array[Dictionary]) -> void:
@@ -166,24 +176,92 @@ func _make_box_batch(node_name: String, boxes: Array[Dictionary], material: Mate
 	instance.material_override = material
 	add_child(instance)
 
-func _make_static_character() -> void:
-	var root := Node3D.new()
-	root.name = "StaticCharacter"
-	root.position = Vector3(7.5, 0.0, 7.5)
-	add_child(root)
-	var parts_by_material: Dictionary = {"shirt": [], "skin": [], "pants": [], "dark": []}
-	_add_capsule_part(parts_by_material["shirt"], 0.46, 1.05, Vector3(0.0, 1.25, 0.0))
-	_add_sphere_part(parts_by_material["skin"], 0.34, Vector3(0.0, 2.05, 0.0))
-	_add_capsule_part(parts_by_material["pants"], 0.16, 0.82, Vector3(-0.17, 0.48, 0.0))
-	_add_capsule_part(parts_by_material["pants"], 0.16, 0.82, Vector3(0.17, 0.48, 0.0))
-	_add_capsule_part(parts_by_material["skin"], 0.12, 0.78, Vector3(-0.48, 1.28, 0.0), Vector3(0.0, 0.0, -0.12))
-	_add_capsule_part(parts_by_material["skin"], 0.12, 0.78, Vector3(0.48, 1.28, 0.0), Vector3(0.0, 0.0, 0.12))
-	_add_box_part(parts_by_material["dark"], Vector3(0.28, 0.12, 0.48), Vector3(-0.17, 0.08, -0.08))
-	_add_box_part(parts_by_material["dark"], Vector3(0.28, 0.12, 0.48), Vector3(0.17, 0.08, -0.08))
-	_make_character_batch(root, "ShirtBatch", parts_by_material["shirt"], mat_shirt)
-	_make_character_batch(root, "SkinBatch", parts_by_material["skin"], mat_skin)
-	_make_character_batch(root, "PantsBatch", parts_by_material["pants"], mat_pants)
-	_make_character_batch(root, "ShoesBatch", parts_by_material["dark"], mat_dark)
+func _setup_input_actions() -> void:
+	var keys := {
+		"move_forward": [KEY_W, KEY_UP],
+		"move_back": [KEY_S, KEY_DOWN],
+		"move_left": [KEY_A, KEY_LEFT],
+		"move_right": [KEY_D, KEY_RIGHT]
+	}
+	for action in keys:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		for keycode in keys[action]:
+			var event := InputEventKey.new()
+			event.physical_keycode = keycode
+			InputMap.action_add_event(action, event)
+
+func _make_player() -> void:
+	player = CharacterBody3D.new()
+	player.name = "Player"
+	player.set_script(PlayerController)
+	player.position = Vector3(7.5, 0.1, 7.5)
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.36
+	capsule.height = 1.8
+	var collision := CollisionShape3D.new()
+	collision.shape = capsule
+	collision.position.y = 0.9
+	player.add_child(collision)
+	var body := MeshInstance3D.new()
+	var body_mesh := CapsuleMesh.new()
+	body_mesh.radius = 0.36
+	body_mesh.height = 1.15
+	body.mesh = body_mesh
+	body.position.y = 1.12
+	body.material_override = mat_shirt
+	player.add_child(body)
+	var head := MeshInstance3D.new()
+	var head_mesh := SphereMesh.new()
+	head_mesh.radius = 0.25
+	head_mesh.height = 0.5
+	head.mesh = head_mesh
+	head.position.y = 1.88
+	head.material_override = mat_skin
+	player.add_child(head)
+	for side in [-1.0, 1.0]:
+		var leg := MeshInstance3D.new()
+		var leg_mesh := CapsuleMesh.new()
+		leg_mesh.radius = 0.13
+		leg_mesh.height = 0.72
+		leg.mesh = leg_mesh
+		leg.position = Vector3(side * 0.16, 0.38, 0.0)
+		leg.material_override = mat_pants
+		player.add_child(leg)
+	add_child(player)
+
+func _make_pedestrians() -> void:
+	for i in range(NPC_COUNT):
+		var npc := Node3D.new()
+		npc.name = "Pedestrian_%02d" % (i + 1)
+		npc.set_script(PedestrianController)
+		npc.set("phase", float(i) * TAU / float(NPC_COUNT))
+		npc.set("orbit_radius", 4.0 + float(i % 2) * 2.0)
+		npc.position = Vector3(cos(float(i) * TAU / float(NPC_COUNT)) * 25.0, 0.0, sin(float(i) * TAU / float(NPC_COUNT)) * 25.0)
+		var torso := MeshInstance3D.new()
+		var torso_mesh := CapsuleMesh.new()
+		torso_mesh.radius = 0.28
+		torso_mesh.height = 0.9
+		torso.mesh = torso_mesh
+		torso.position.y = 0.95
+		torso.material_override = mat_npc if i % 2 == 0 else mat_shirt
+		npc.add_child(torso)
+		var head := MeshInstance3D.new()
+		var head_mesh := SphereMesh.new()
+		head_mesh.radius = 0.2
+		head_mesh.height = 0.4
+		head.mesh = head_mesh
+		head.position.y = 1.62
+		head.material_override = mat_skin
+		npc.add_child(head)
+		add_child(npc)
+		pedestrians.append(npc)
+
+func _process(_delta: float) -> void:
+	if player != null and camera_pivot != null:
+		camera_pivot.global_position = player.global_position
+	for npc in pedestrians:
+		pass
 
 func _add_capsule_part(parts: Array, radius: float, height: float, position: Vector3, rotation: Vector3 = Vector3.ZERO) -> void:
 	var mesh := CapsuleMesh.new()
@@ -224,10 +302,11 @@ func _make_character_batch(parent: Node3D, node_name: String, parts: Array, mate
 func _make_camera() -> void:
 	camera_pivot = Node3D.new()
 	camera_pivot.name = "CameraOrbitPivot"
+	camera_pivot.position = player.global_position if player != null else Vector3.ZERO
 	add_child(camera_pivot)
 	city_camera = Camera3D.new()
 	city_camera.name = "CityCamera"
-	city_camera.position = Vector3(0.0, 78.0, 88.0)
+	city_camera.position = Vector3(0.0, 24.0, 28.0)
 	city_camera.fov = 55.0
 	camera_pivot.add_child(city_camera)
 	city_camera.look_at(Vector3.ZERO, Vector3.UP)
@@ -296,7 +375,7 @@ func _make_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	var title := Label.new()
-	title.text = "GLOBAL CITY  |  PROTOTIPO 0.4"
+	title.text = "GLOBAL CITY  |  PROTOTIPO 0.5"
 	title.position = Vector2(24.0, 18.0)
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", Color("#ffffff"))
@@ -306,7 +385,7 @@ func _make_hud() -> void:
 	layer.add_child(title)
 
 	var info := Label.new()
-	info.text = "16 PARCELAS VACÍAS  •  PERSONAJE ESTÁTICO"
+	info.text = "16 PARCELAS  •  5 PEATONES  •  MOVILIDAD BÁSICA"
 	info.position = Vector2(24.0, 52.0)
 	info.add_theme_font_size_override("font_size", 15)
 	info.add_theme_color_override("font_color", Color("#f3f5e9"))
@@ -316,7 +395,7 @@ func _make_hud() -> void:
 	layer.add_child(info)
 
 	var controls := Label.new()
-	controls.text = "DESLIZA: GIRAR CÁMARA   •   PINZA: ZOOM"
+	controls.text = "WASD / FLECHAS: MOVER   •   ARRASTRA: CÁMARA   •   PINZA: ZOOM"
 	controls.anchor_left = 0.0
 	controls.anchor_top = 1.0
 	controls.anchor_right = 1.0
