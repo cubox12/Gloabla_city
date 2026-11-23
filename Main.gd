@@ -96,6 +96,15 @@ func _make_ground() -> void:
 	var ground_boxes: Array[Dictionary] = []
 	_add_box_spec(ground_boxes, Vector3(WORLD_SIZE, 1.0, WORLD_SIZE), Vector3(0.0, -0.55, 0.0))
 	_make_box_batch("GroundBatch", ground_boxes, mat_ground)
+	var floor_body := StaticBody3D.new()
+	floor_body.name = "GroundCollision"
+	floor_body.position = Vector3(0.0, -0.56, 0.0)
+	var floor_shape := CollisionShape3D.new()
+	var box_shape := BoxShape3D.new()
+	box_shape.size = Vector3(WORLD_SIZE, 0.1, WORLD_SIZE)
+	floor_shape.shape = box_shape
+	floor_body.add_child(floor_shape)
+	add_child(floor_body)
 
 func _make_roads() -> void:
 	var road_boxes: Array[Dictionary] = []
@@ -411,3 +420,39 @@ func _make_hud() -> void:
 	controls.add_theme_constant_override("shadow_offset_x", 2)
 	controls.add_theme_constant_override("shadow_offset_y", 2)
 	layer.add_child(controls)
+	_make_mobile_controls(layer)
+
+func _make_mobile_controls(layer: CanvasLayer) -> void:
+	var panel := GridContainer.new()
+	panel.name = "MobileMovementPad"
+	panel.columns = 3
+	panel.anchor_left = 1.0
+	panel.anchor_top = 1.0
+	panel.anchor_right = 1.0
+	panel.anchor_bottom = 1.0
+	panel.offset_left = -214.0
+	panel.offset_top = -198.0
+	panel.offset_right = -18.0
+	panel.offset_bottom = -18.0
+	panel.add_theme_constant_override("h_separation", 5)
+	panel.add_theme_constant_override("v_separation", 5)
+	layer.add_child(panel)
+	var layout := [["", "", ""], ["move_left", "move_forward", "move_right"], ["", "move_back", ""]]
+	for row in layout:
+		for action in row:
+			var button := Button.new()
+			button.custom_minimum_size = Vector2(60.0, 54.0)
+			if action == "":
+				button.visible = false
+			else:
+				button.text = {"move_left": "◀", "move_forward": "▲", "move_right": "▶", "move_back": "▼"}[action]
+				button.add_theme_font_size_override("font_size", 22)
+				button.button_down.connect(_on_move_button_down.bind(action))
+				button.button_up.connect(_on_move_button_up.bind(action))
+			panel.add_child(button)
+
+func _on_move_button_down(action: String) -> void:
+	Input.action_press(action)
+
+func _on_move_button_up(action: String) -> void:
+	Input.action_release(action)
