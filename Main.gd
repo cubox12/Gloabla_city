@@ -183,6 +183,8 @@ func _make_city_assets() -> void:
 	var furniture: Array[Dictionary] = []
 	var trees: Array[Dictionary] = []
 	var lot_index := 0
+	var building_collisions := StaticBody3D.new()
+	building_collisions.name = "BuildingCollisions"
 	for x_index in range(-2, 2):
 		for z_index in range(-2, 2):
 			var center := Vector3((float(x_index) + 0.5) * ROAD_SPACING, 0.0, (float(z_index) + 0.5) * ROAD_SPACING)
@@ -195,6 +197,12 @@ func _make_city_assets() -> void:
 			elif lot_index % 3 == 2:
 				facade = facades_c
 			_add_box_spec(facade, Vector3(width, height, depth), center + Vector3(0.0, height * 0.5, 0.0))
+			var building_shape := BoxShape3D.new()
+			building_shape.size = Vector3(width, height, depth)
+			var building_collision := CollisionShape3D.new()
+			building_collision.shape = building_shape
+			building_collision.position = center + Vector3(0.0, height * 0.5, 0.0)
+			building_collisions.add_child(building_collision)
 			_add_box_spec(roofs, Vector3(width + 0.35, 0.28, depth + 0.35), center + Vector3(0.0, height + 0.14, 0.0))
 			# Repeated front windows and a ground-floor entrance.
 			var columns := 3
@@ -227,6 +235,7 @@ func _make_city_assets() -> void:
 	_make_box_batch("BuildingEntrances", doors, mat_furniture)
 	_make_box_batch("StreetTrees", trees, mat_parcel_edge)
 	_make_box_batch("StreetFurniture", furniture, mat_furniture)
+	add_child(building_collisions)
 
 func _add_box_spec(target: Array[Dictionary], size: Vector3, position: Vector3) -> void:
 	target.append({"size": size, "position": position})
