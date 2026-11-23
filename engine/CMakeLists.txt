@@ -11,37 +11,48 @@ target_compile_options(global_engine_core PRIVATE
 )
 
 if(ANDROID)
-    # Resolve native_app_glue from the NDK root without assuming which
-    # NDK variable the Android Gradle Plugin populated.
-    find_path(GE_NATIVE_APP_GLUE_DIR
-        NAMES android_native_app_glue.h
-        HINTS
-            "\${CMAKE_ANDROID_NDK}"
-            "\${ANDROID_NDK}"
-            "$ENV{ANDROID_NDK_HOME}"
-            "$ENV{ANDROID_NDK_ROOT}"
-        PATH_SUFFIXES sources/android/native_app_glue
-        NO_DEFAULT_PATH
-    )
-    if(NOT GE_NATIVE_APP_GLUE_DIR OR
-       NOT EXISTS "\${GE_NATIVE_APP_GLUE_DIR}/android_native_app_glue.c")
-        message(FATAL_ERROR
-            "native_app_glue files not found. "
-            "CMAKE_ANDROID_NDK='\${CMAKE_ANDROID_NDK}', "
-            "ANDROID_NDK='\${ANDROID_NDK}', "
-            "ANDROID_NDK_HOME='$ENV{ANDROID_NDK_HOME}', "
-            "ANDROID_NDK_ROOT='$ENV{ANDROID_NDK_ROOT}'. "
-            "Checked NDK sources/android/native_app_glue.")
+    # Prefer the NDK selected by AGP's actual CMake toolchain. The machine
+    # can have more than one NDK installed, so ANDROID_NDK_HOME is fallback only.
+    set(GE_NDK_ROOT "")
+    if(CMAKE_TOOLCHAIN_FILE)
+        get_filename_component(GE_TOOLCHAIN_DIR "${CMAKE_TOOLCHAIN_FILE}" DIRECTORY)
+        get_filename_component(GE_NDK_BUILD_DIR "${GE_TOOLCHAIN_DIR}" DIRECTORY)
+        get_filename_component(GE_NDK_FROM_TOOLCHAIN "${GE_NDK_BUILD_DIR}" DIRECTORY)
+        if(EXISTS "${GE_NDK_FROM_TOOLCHAIN}/sources/android/native_app_glue/android_native_app_glue.c")
+            set(GE_NDK_ROOT "${GE_NDK_FROM_TOOLCHAIN}")
+        endif()
     endif()
 
+    if(GE_NDK_ROOT STREQUAL "")
+        foreach(GE_NDK_CANDIDATE
+                "${ANDROID_NDK}"
+                "${CMAKE_ANDROID_NDK}"
+                "$ENV{ANDROID_NDK_HOME}"
+                "$ENV{ANDROID_NDK_ROOT}")
+            if(GE_NDK_CANDIDATE AND
+               EXISTS "${GE_NDK_CANDIDATE}/sources/android/native_app_glue/android_native_app_glue.c")
+                set(GE_NDK_ROOT "${GE_NDK_CANDIDATE}")
+                break()
+            endif()
+        endforeach()
+    endif()
+
+    if(GE_NDK_ROOT STREQUAL "")
+        message(FATAL_ERROR
+            "Android NDK native_app_glue not found. "
+            "CMAKE_TOOLCHAIN_FILE='${CMAKE_TOOLCHAIN_FILE}'. "
+            "Checked the selected NDK root and fallback NDK environment paths.")
+    endif()
+
+    set(GE_NATIVE_APP_GLUE_DIR "${GE_NDK_ROOT}/sources/android/native_app_glue")
     add_library(native_app_glue STATIC
-        "\${GE_NATIVE_APP_GLUE_DIR}/android_native_app_glue.c")
-    target_include_directories(native_app_glue PUBLIC "\${GE_NATIVE_APP_GLUE_DIR}")
+        "${GE_NATIVE_APP_GLUE_DIR}/android_native_app_glue.c")
+    target_include_directories(native_app_glue PUBLIC "${GE_NATIVE_APP_GLUE_DIR}")
 
     add_library(globalengine SHARED
         src/platform/android_main.cpp
         src/platform/gles_renderer.cpp)
-    target_include_directories(globalengine PRIVATE include src/platform "\${GE_NATIVE_APP_GLUE_DIR}")
+    target_include_directories(globalengine PRIVATE include src/platform "${GE_NATIVE_APP_GLUE_DIR}")
     target_compile_options(globalengine PRIVATE -Wall -Wextra -Wpedantic -O3)
     target_link_options(globalengine PRIVATE "-u" "ANativeActivity_onCreate")
     target_link_libraries(globalengine PRIVATE
