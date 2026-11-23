@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4 — city planning and mobile camera
+
+- Added 16 empty, subtly tinted parcel pads with thin borders, merged into two static material batches. No buildings have been placed.
+- Added zebra crossings at the 5 × 5 street intersections. Crosswalks share the existing road-marking batch.
+- Replaced the fixed camera with an orbit pivot: one-finger drag rotates the view and pinch zoom changes camera distance on touch devices.
+- Added desktop mouse drag and mouse-wheel zoom for editor/desktop testing.
+- Added HUD instructions and parcel/player status.
+- Kept the character completely static; no movement controller or physics body was introduced.
+- Kept Compatibility rendering, small procedural textures and disabled dynamic shadows.
+- Extended the static validator to check the new feature contract.
+- No FPS claim is made: Godot is not installed in the authoring environment and no device profiling has been performed.
+ 
+## 0.3 — validación continua y paquete limpio
+
+- Añadida validación estática de referencias, renderer, batching, texturas y ausencia de binarios.
+- Añadido workflow de GitHub Actions para importar y lanzar la escena con Godot 4.4.1 en modo headless.
+- Añadidos .gitattributes para finales de línea consistentes.
+- Se mantiene la escena base sin edificios, vehículos ni movimiento del personaje.
+
 ## 0.2 — static batching and mobile baseline
 
 - Merged road, sidewalk, ground and road-marking boxes into one mesh batch per material.
@@ -9,10 +28,3 @@
 - Disabled dynamic directional-light shadows in the low-cost baseline.
 - Added art direction, asset provenance, ignore rules and a static validation script.
 - Kept the player character immobile and did not add buildings, vehicles, traffic or gameplay controls.
-
-## 0.3 — validación continua y paquete limpio
-
-- Añadida validación estática de referencias, renderer, batching, texturas y ausencia de binarios.
-- Añadido workflow de GitHub Actions para importar y lanzar la escena con Godot 4.4.1 en modo headless.
-- Añadidos .gitattributes para finales de línea consistentes.
-- Se mantiene la escena base sin edificios, vehículos ni movimiento del personaje.
