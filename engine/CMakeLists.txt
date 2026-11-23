@@ -16,33 +16,34 @@ if(ANDROID)
     find_path(GE_NATIVE_APP_GLUE_DIR
         NAMES android_native_app_glue.h
         HINTS
-            "${CMAKE_ANDROID_NDK}"
-            "${ANDROID_NDK}"
+            "\${CMAKE_ANDROID_NDK}"
+            "\${ANDROID_NDK}"
             "$ENV{ANDROID_NDK_HOME}"
             "$ENV{ANDROID_NDK_ROOT}"
         PATH_SUFFIXES sources/android/native_app_glue
         NO_DEFAULT_PATH
     )
     if(NOT GE_NATIVE_APP_GLUE_DIR OR
-       NOT EXISTS "${GE_NATIVE_APP_GLUE_DIR}/android_native_app_glue.c")
+       NOT EXISTS "\${GE_NATIVE_APP_GLUE_DIR}/android_native_app_glue.c")
         message(FATAL_ERROR
             "native_app_glue files not found. "
-            "CMAKE_ANDROID_NDK='${CMAKE_ANDROID_NDK}', "
-            "ANDROID_NDK='${ANDROID_NDK}', "
+            "CMAKE_ANDROID_NDK='\${CMAKE_ANDROID_NDK}', "
+            "ANDROID_NDK='\${ANDROID_NDK}', "
             "ANDROID_NDK_HOME='$ENV{ANDROID_NDK_HOME}', "
             "ANDROID_NDK_ROOT='$ENV{ANDROID_NDK_ROOT}'. "
             "Checked NDK sources/android/native_app_glue.")
     endif()
 
     add_library(native_app_glue STATIC
-        "${GE_NATIVE_APP_GLUE_DIR}/android_native_app_glue.c")
-    target_include_directories(native_app_glue PUBLIC "${GE_NATIVE_APP_GLUE_DIR}")
+        "\${GE_NATIVE_APP_GLUE_DIR}/android_native_app_glue.c")
+    target_include_directories(native_app_glue PUBLIC "\${GE_NATIVE_APP_GLUE_DIR}")
 
     add_library(globalengine SHARED
         src/platform/android_main.cpp
         src/platform/gles_renderer.cpp)
-    target_include_directories(globalengine PRIVATE include src/platform "${GE_NATIVE_APP_GLUE_DIR}")
+    target_include_directories(globalengine PRIVATE include src/platform "\${GE_NATIVE_APP_GLUE_DIR}")
     target_compile_options(globalengine PRIVATE -Wall -Wextra -Wpedantic -O3)
+    target_link_options(globalengine PRIVATE "-u" "ANativeActivity_onCreate")
     target_link_libraries(globalengine PRIVATE
         global_engine_core native_app_glue android log EGL GLESv3)
 else()

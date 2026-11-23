@@ -24,11 +24,12 @@ struct State {
     std::chrono::steady_clock::time_point last;
 };
 void destroy_egl(State& s) {
-    if(s.ready)s.renderer.shutdown();s.ready=false;
+    if(s.ready) s.renderer.shutdown();
+    s.ready=false;
     if(s.display!=EGL_NO_DISPLAY){
         eglMakeCurrent(s.display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
-        if(s.context!=EGL_NO_CONTEXT)eglDestroyContext(s.display,s.context);
-        if(s.surface!=EGL_NO_SURFACE)eglDestroySurface(s.display,s.surface);
+        if(s.context!=EGL_NO_CONTEXT) eglDestroyContext(s.display,s.context);
+        if(s.surface!=EGL_NO_SURFACE) eglDestroySurface(s.display,s.surface);
         eglTerminate(s.display);
     }
     s.display=EGL_NO_DISPLAY;s.surface=EGL_NO_SURFACE;s.context=EGL_NO_CONTEXT;
@@ -128,16 +129,17 @@ int32_t input(android_app* app,AInputEvent* e) {
                 s->touches.erase(id);
             }
         }s->pinch=0;return 1;
-    }return 0;
+    }
+    return 0;
 }
 } // namespace
 
 void android_main(android_app* app) {
-    app_dummy();State s;app->userData=&s;app->onAppCmd=command;app->onInputEvent=input;
+    State s;app->userData=&s;app->onAppCmd=command;app->onInputEvent=input;
     s.last=std::chrono::steady_clock::now();
     while(true){
         int events=0;android_poll_source* source=nullptr;
-        while(ALooper_pollAll(s.display==EGL_NO_DISPLAY?-1:0,nullptr,&events,
+        while(ALooper_pollOnce(s.display==EGL_NO_DISPLAY?-1:0,nullptr,&events,
               reinterpret_cast<void**>(&source))>=0){
             if(source)source->process(app,source);
             if(app->destroyRequested){destroy_egl(s);return;}
@@ -150,6 +152,9 @@ void android_main(android_app* app) {
                 const EGLint err=eglGetError();GE_LOG("eglSwapBuffers: 0x%x",err);
                 if(err==EGL_BAD_SURFACE||err==EGL_CONTEXT_LOST)destroy_egl(s);
             }
-        } else ALooper_pollAll(16,nullptr,&events,reinterpret_cast<void**>(&source));
+        } else {
+            (void)ALooper_pollOnce(16,nullptr,&events,reinterpret_cast<void**>(&source));
+            if(source)source->process(app,source);
+        }
     }
 }
