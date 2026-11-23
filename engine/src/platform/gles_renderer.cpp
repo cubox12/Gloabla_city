@@ -66,6 +66,14 @@ void append_box(std::vector<float>& out,const Box& b) {
         out.insert(out.end(),{v.x,v.y,v.z,b.color.r*k,b.color.g*k,b.color.b*k,b.color.a});
     }
 }
+void prepare_vertex_attributes() {
+    constexpr GLsizei stride=static_cast<GLsizei>(7U*sizeof(float));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,stride,nullptr);
+    glVertexAttribPointer(1,4,GL_FLOAT,GL_FALSE,stride,
+                          reinterpret_cast<const void*>(3U*sizeof(float)));
+}
 } // namespace
 
 bool GlesRenderer::initialize() {
@@ -85,39 +93,67 @@ bool GlesRenderer::initialize() {
     GLint linked=0;glGetProgramiv(program_,GL_LINK_STATUS,&linked);
     if(linked!=GL_TRUE){glDeleteProgram(program_);program_=0;return false;}
     mvp_location_=glGetUniformLocation(program_,"uMVP");
-    glGenBuffers(1,&vertex_buffer_);glEnable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
+    glGenBuffers(1,&static_vertex_buffer_);
+    glGenBuffers(1,&dynamic_vertex_buffer_);
+    glEnable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
     glClearColor(0.50f,0.68f,0.78f,1.0f);
-    return vertex_buffer_!=0&&mvp_location_>=0;
+    return static_vertex_buffer_!=0&&dynamic_vertex_buffer_!=0&&mvp_location_>=0;
 }
 void GlesRenderer::resize(int w,int h) {
     width_=w>0?w:1;height_=h>0?h:1;glViewport(0,0,width_,height_);
 }
 void GlesRenderer::render(const CityWorld& world,const CameraState& camera) {
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-    if(!program_||!vertex_buffer_)return;
-    std::vector<Box> boxes;world.gather_draw_boxes(boxes);
-    std::vector<float> vertices;vertices.reserve(boxes.size()*36U*7U);
-    for(const Box& b:boxes)append_box(vertices,b);
+    if(!program_||!static_vertex_buffer_||!dynamic_vertex_buffer_)return;
+
+    // Static city meshes are converted and uploaded only when the world is rebuilt.
+    if(uploaded_static_revision_!=world.static_geometry_revision()) {
+        const std::vector<Box>& boxes=world.static_draw_boxes();
+        static_vertices_.clear();
+        static_vertices_.reserve(boxes.size()*36U*7U);
+        for(const Box& box:boxes)append_box(static_vertices_,box);
+        glBindBuffer(GL_ARRAY_BUFFER,static_vertex_buffer_);
+        glBufferData(GL_ARRAY_BUFFER,
+            static_cast<GLsizeiptr>(static_vertices_.size()*sizeof(float)),
+            static_vertices_.data(),GL_STATIC_DRAW);
+        static_vertex_count_=static_cast<GLsizei>(static_vertices_.size()/7U);
+        uploaded_static_revision_=world.static_geometry_revision();
+    }
+
+    // Reuse CPU-side capacities for moving entities; only this small buffer streams.
+    world.gather_dynamic_draw_boxes(dynamic_boxes_);
+    dynamic_vertices_.clear();
+    const std::size_t required=dynamic_boxes_.size()*36U*7U;
+    if(dynamic_vertices_.capacity()<required)dynamic_vertices_.reserve(required);
+    for(const Box& box:dynamic_boxes_)append_box(dynamic_vertices_,box);
+    glBindBuffer(GL_ARRAY_BUFFER,dynamic_vertex_buffer_);
+    glBufferData(GL_ARRAY_BUFFER,
+        static_cast<GLsizeiptr>(dynamic_vertices_.size()*sizeof(float)),
+        dynamic_vertices_.data(),GL_STREAM_DRAW);
+
     const float horizontal=camera.distance*std::cos(camera.pitch);
     const Vec3 eye{std::sin(camera.yaw)*horizontal,
         std::sin(camera.pitch)*camera.distance,std::cos(camera.yaw)*horizontal};
     const Mat4 vp=multiply(perspective(0.92f,static_cast<float>(width_)/height_,0.1f,260.0f),
                            look_at(eye,{0,0,0}));
-    glUseProgram(program_);glUniformMatrix4fv(mvp_location_,1,GL_FALSE,vp.v.data());
-    glBindBuffer(GL_ARRAY_BUFFER,vertex_buffer_);
-    glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(vertices.size()*sizeof(float)),
-                 vertices.data(),GL_STREAM_DRAW);
-    constexpr GLsizei stride=static_cast<GLsizei>(7U*sizeof(float));
-    glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
-    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,stride,nullptr);
-    glVertexAttribPointer(1,4,GL_FLOAT,GL_FALSE,stride,
-                          reinterpret_cast<const void*>(3U*sizeof(float)));
-    glDrawArrays(GL_TRIANGLES,0,static_cast<GLsizei>(vertices.size()/7U));
-    glDisableVertexAttribArray(0);glDisableVertexAttribArray(1);
+    glUseProgram(program_);
+    glUniformMatrix4fv(mvp_location_,1,GL_FALSE,vp.v.data());
+
+    glBindBuffer(GL_ARRAY_BUFFER,static_vertex_buffer_);
+    prepare_vertex_attributes();
+    if(static_vertex_count_>0)glDrawArrays(GL_TRIANGLES,0,static_vertex_count_);
+
+    glBindBuffer(GL_ARRAY_BUFFER,dynamic_vertex_buffer_);
+    prepare_vertex_attributes();
+    const GLsizei dynamic_count=static_cast<GLsizei>(dynamic_vertices_.size()/7U);
+    if(dynamic_count>0)glDrawArrays(GL_TRIANGLES,0,dynamic_count);
 }
 void GlesRenderer::shutdown() {
-    if(vertex_buffer_)glDeleteBuffers(1,&vertex_buffer_);
+    if(static_vertex_buffer_)glDeleteBuffers(1,&static_vertex_buffer_);
+    if(dynamic_vertex_buffer_)glDeleteBuffers(1,&dynamic_vertex_buffer_);
     if(program_)glDeleteProgram(program_);
-    vertex_buffer_=0;program_=0;mvp_location_=-1;
+    static_vertex_buffer_=0;dynamic_vertex_buffer_=0;program_=0;
+    mvp_location_=-1;static_vertex_count_=0;uploaded_static_revision_=0;
+    static_vertices_.clear();dynamic_vertices_.clear();dynamic_boxes_.clear();
 }
 } // namespace global_engine::platform
