@@ -1,39 +1,52 @@
 extends Node3D
 
-# GLOBAL CITY 0.2 — low-object-count Android prototype.
-# The city stays intentionally empty: base platform, roads and one static character.
-# Static scenery is merged by material to reduce MeshInstance3D count and draw calls.
+# GLOBAL CITY 0.4 — mobile-friendly city-planning prototype.
+# The player remains deliberately static. Geometry is batched by material.
 
 const WORLD_SIZE: float = 140.0
 const ROAD_WIDTH: float = 10.0
 const ROAD_SPACING: float = 34.0
 const SIDEWALK_WIDTH: float = 2.2
 const SIDEWALK_OFFSET: float = ROAD_WIDTH * 0.5 + 1.4
+const CAMERA_MIN_DISTANCE: float = 58.0
+const CAMERA_MAX_DISTANCE: float = 155.0
+const CAMERA_DRAG_SENSITIVITY: float = 0.0045
 
 var mat_ground: StandardMaterial3D
 var mat_road: StandardMaterial3D
 var mat_sidewalk: StandardMaterial3D
 var mat_line: StandardMaterial3D
+var mat_parcel: StandardMaterial3D
+var mat_parcel_edge: StandardMaterial3D
 var mat_skin: StandardMaterial3D
 var mat_shirt: StandardMaterial3D
 var mat_pants: StandardMaterial3D
 var mat_dark: StandardMaterial3D
+
+var camera_pivot: Node3D
+var city_camera: Camera3D
+var touch_points: Dictionary = {}
+var previous_pinch_distance: float = 0.0
+var mouse_dragging: bool = false
 
 func _ready() -> void:
 	_make_materials()
 	_make_environment()
 	_make_ground()
 	_make_roads()
+	_make_parcels()
 	_make_static_character()
 	_make_camera()
 	_make_sun()
-	_make_title_label()
+	_make_hud()
 
 func _make_materials() -> void:
 	mat_ground = _make_material(Color("#ffffff"), "res://assets/grass_tile.png", Vector3(28.0, 28.0, 1.0))
 	mat_road = _make_material(Color("#ffffff"), "res://assets/asphalt_tile.png", Vector3(8.0, 8.0, 1.0))
 	mat_sidewalk = _make_material(Color("#b9bbb5"))
-	mat_line = _make_material(Color("#eee5b7"))
+	mat_line = _make_material(Color("#f2e9c9"))
+	mat_parcel = _make_material(Color("#9db783"))
+	mat_parcel_edge = _make_material(Color("#718d61"))
 	mat_skin = _make_material(Color("#d9a078"))
 	mat_shirt = _make_material(Color("#2676a8"))
 	mat_pants = _make_material(Color("#263448"))
@@ -65,7 +78,7 @@ func _make_environment() -> void:
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color("#c9d9e7")
-	environment.ambient_light_energy = 0.78
+	environment.ambient_light_energy = 0.82
 	world.environment = environment
 	add_child(world)
 
@@ -89,9 +102,43 @@ func _make_roads() -> void:
 			var edge := SIDEWALK_OFFSET
 			_add_box_spec(sidewalk_boxes, Vector3(SIDEWALK_WIDTH, 0.18, WORLD_SIZE), Vector3(road_offset + side * edge, 0.11, 0.0))
 			_add_box_spec(sidewalk_boxes, Vector3(WORLD_SIZE, 0.18, SIDEWALK_WIDTH), Vector3(0.0, 0.115, road_offset + side * edge))
+	_add_crosswalks(marking_boxes)
 	_make_box_batch("RoadBatch", road_boxes, mat_road)
 	_make_box_batch("SidewalkBatch", sidewalk_boxes, mat_sidewalk)
 	_make_box_batch("RoadMarkingsBatch", marking_boxes, mat_line)
+
+func _add_crosswalks(target: Array[Dictionary]) -> void:
+	# Crosswalk bars are part of the existing marking batch: no extra scene nodes.
+	for road_x in range(-2, 3):
+		for road_z in range(-2, 3):
+			var x := float(road_x) * ROAD_SPACING
+			var z := float(road_z) * ROAD_SPACING
+			for stripe in range(6):
+				var offset := (float(stripe) - 2.5) * 0.95
+				_add_box_spec(target, Vector3(8.0, 0.028, 0.38), Vector3(x, 0.112, z + offset))
+				_add_box_spec(target, Vector3(0.38, 0.028, 8.0), Vector3(x + offset, 0.112, z))
+
+func _make_parcels() -> void:
+	var plot_boxes: Array[Dictionary] = []
+	var edge_boxes: Array[Dictionary] = []
+	var plot_width := ROAD_SPACING - (SIDEWALK_OFFSET * 2.0) - 0.8
+	var plot_center_offset := ROAD_SPACING * 0.5
+	for x_index in range(-2, 2):
+		for z_index in range(-2, 2):
+			var center := Vector3(
+				(float(x_index) + 0.5) * ROAD_SPACING,
+				-0.025,
+				(float(z_index) + 0.5) * ROAD_SPACING
+			)
+			_add_box_spec(plot_boxes, Vector3(plot_width, 0.025, plot_width), center)
+			var half := plot_width * 0.5
+			var border := 0.16
+			_add_box_spec(edge_boxes, Vector3(plot_width + border, 0.025, border), Vector3(center.x, 0.0, center.z - half))
+			_add_box_spec(edge_boxes, Vector3(plot_width + border, 0.025, border), Vector3(center.x, 0.0, center.z + half))
+			_add_box_spec(edge_boxes, Vector3(border, 0.025, plot_width + border), Vector3(center.x - half, 0.0, center.z))
+			_add_box_spec(edge_boxes, Vector3(border, 0.025, plot_width + border), Vector3(center.x + half, 0.0, center.z))
+	_make_box_batch("EmptyParcelsBatch", plot_boxes, mat_parcel)
+	_make_box_batch("ParcelBordersBatch", edge_boxes, mat_parcel_edge)
 
 func _add_box_spec(target: Array[Dictionary], size: Vector3, position: Vector3) -> void:
 	target.append({"size": size, "position": position})
@@ -176,13 +223,67 @@ func _make_character_batch(parent: Node3D, node_name: String, parts: Array, mate
 	parent.add_child(instance)
 
 func _make_camera() -> void:
-	var camera := Camera3D.new()
-	camera.name = "CityCamera"
-	camera.position = Vector3(58.0, 62.0, 72.0)
-	camera.fov = 55.0
-	add_child(camera)
-	camera.look_at(Vector3.ZERO, Vector3.UP)
-	camera.current = true
+	camera_pivot = Node3D.new()
+	camera_pivot.name = "CameraOrbitPivot"
+	add_child(camera_pivot)
+	city_camera = Camera3D.new()
+	city_camera.name = "CityCamera"
+	city_camera.position = Vector3(0.0, 78.0, 88.0)
+	city_camera.fov = 55.0
+	camera_pivot.add_child(city_camera)
+	city_camera.look_at(Vector3.ZERO, Vector3.UP)
+	city_camera.current = true
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			touch_points[event.index] = event.position
+			if touch_points.size() == 2:
+				previous_pinch_distance = _get_pinch_distance()
+		else:
+			touch_points.erase(event.index)
+			if touch_points.size() < 2:
+				previous_pinch_distance = 0.0
+	elif event is InputEventScreenDrag:
+		if not touch_points.has(event.index):
+			return
+		touch_points[event.index] = event.position
+		if touch_points.size() == 1:
+			_orbit_camera(event.relative)
+		elif touch_points.size() >= 2:
+			var current_distance := _get_pinch_distance()
+			if previous_pinch_distance > 0.0 and current_distance > 0.0:
+				var zoom_ratio := previous_pinch_distance / current_distance
+				_set_camera_distance(city_camera.position.length() * zoom_ratio)
+			previous_pinch_distance = current_distance
+	elif event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			mouse_dragging = event.pressed
+		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_set_camera_distance(city_camera.position.length() * 0.90)
+		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_set_camera_distance(city_camera.position.length() * 1.10)
+	elif event is InputEventMouseMotion and mouse_dragging:
+		_orbit_camera(event.relative)
+
+func _get_pinch_distance() -> float:
+	if touch_points.size() < 2:
+		return 0.0
+	var points: Array = touch_points.values()
+	return points[0].distance_to(points[1])
+
+func _orbit_camera(delta: Vector2) -> void:
+	camera_pivot.rotation.y -= delta.x * CAMERA_DRAG_SENSITIVITY
+	camera_pivot.rotation.x = clampf(
+		camera_pivot.rotation.x - delta.y * CAMERA_DRAG_SENSITIVITY,
+		-0.22,
+		0.38
+	)
+
+func _set_camera_distance(distance: float) -> void:
+	var direction := city_camera.position.normalized()
+	var clamped_distance := clampf(distance, CAMERA_MIN_DISTANCE, CAMERA_MAX_DISTANCE)
+	city_camera.position = direction * clamped_distance
 
 func _make_sun() -> void:
 	var sun := DirectionalLight3D.new()
@@ -192,15 +293,43 @@ func _make_sun() -> void:
 	sun.shadow_enabled = false
 	add_child(sun)
 
-func _make_title_label() -> void:
+func _make_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
-	var label := Label.new()
-	label.text = "GLOBAL CITY  |  PROTOTIPO 0.2"
-	label.position = Vector2(24.0, 18.0)
-	label.add_theme_font_size_override("font_size", 24)
-	label.add_theme_color_override("font_color", Color("#ffffff"))
-	label.add_theme_color_override("font_shadow_color", Color("#18232d"))
-	label.add_theme_constant_override("shadow_offset_x", 2)
-	label.add_theme_constant_override("shadow_offset_y", 2)
-	layer.add_child(label)
+	var title := Label.new()
+	title.text = "GLOBAL CITY  |  PROTOTIPO 0.4"
+	title.position = Vector2(24.0, 18.0)
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color("#ffffff"))
+	title.add_theme_color_override("font_shadow_color", Color("#18232d"))
+	title.add_theme_constant_override("shadow_offset_x", 2)
+	title.add_theme_constant_override("shadow_offset_y", 2)
+	layer.add_child(title)
+
+	var info := Label.new()
+	info.text = "16 PARCELAS VACÍAS  •  PERSONAJE ESTÁTICO"
+	info.position = Vector2(24.0, 52.0)
+	info.add_theme_font_size_override("font_size", 15)
+	info.add_theme_color_override("font_color", Color("#f3f5e9"))
+	info.add_theme_color_override("font_shadow_color", Color("#18232d"))
+	info.add_theme_constant_override("shadow_offset_x", 2)
+	info.add_theme_constant_override("shadow_offset_y", 2)
+	layer.add_child(info)
+
+	var controls := Label.new()
+	controls.text = "DESLIZA: GIRAR CÁMARA   •   PINZA: ZOOM"
+	controls.anchor_left = 0.0
+	controls.anchor_top = 1.0
+	controls.anchor_right = 1.0
+	controls.anchor_bottom = 1.0
+	controls.offset_left = 24.0
+	controls.offset_top = -48.0
+	controls.offset_right = -24.0
+	controls.offset_bottom = -18.0
+	controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	controls.add_theme_font_size_override("font_size", 16)
+	controls.add_theme_color_override("font_color", Color("#ffffff"))
+	controls.add_theme_color_override("font_shadow_color", Color("#18232d"))
+	controls.add_theme_constant_override("shadow_offset_x", 2)
+	controls.add_theme_constant_override("shadow_offset_y", 2)
+	layer.add_child(controls)
