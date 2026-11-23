@@ -11,3 +11,16 @@ export_presets.cfg
 *.log
 .DS_Store
 Thumbs.db
+
+# Native engine and Android build outputs
+/build/
+/build-engine/
+**/build/
+.gradle/
+local.properties
+.externalNativeBuild/
+.cxx/
+*.so
+*.a
+*.o
+*.class

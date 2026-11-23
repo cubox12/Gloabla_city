@@ -1,36 +1,15 @@
-# GLOBAL CITY 0.6
+# GLOBAL CITY — transición a GLOBAL ENGINE
 
-Prototipo 3D para Godot 4.x, perfil Android y renderer Compatibility.
+GLOBAL CITY 0.6 se conserva como prototipo de referencia. La nueva línea de desarrollo es **GLOBAL ENGINE 0.1**, un motor propio en C++17 que se desarrolla por separado y no carga el runtime de Godot.
 
-## Estado
-- Plataforma 140 × 140, calles, aceras y pasos peatonales.
-- 16 edificios low-poly con fachadas, ventanas, entradas y colisiones.
-- Personaje controlable con CharacterBody3D y colisión.
-- Cinco peatones NPC con movimiento ambiental sencillo.
-- Árboles estilizados, farolas y bancas agrupados por material para reducir nodos y draw calls.
-- Cámara orbital que sigue al jugador, giro táctil y zoom por pinza.
-- Controles táctiles en pantalla y teclado WASD/flechas.
-- Texturas procedurales de asfalto, césped, concreto y pavimento (128 × 128).
-- Geometría estática agrupada y sombras dinámicas desactivadas.
+El núcleo vive en engine/ y se puede compilar y probar en PC sin Android SDK ni bibliotecas de terceros.
 
-## Controles
-- Android: usa el pad direccional en pantalla para caminar; arrastra fuera de los botones para girar la cámara; pinza para zoom.
-- PC: WASD o flechas para moverte; arrastra con botón izquierdo para girar; rueda para zoom.
+## Validar el núcleo nativo
 
-## Abrir y validar
-1. Ejecuta `python3 tools/generate_textures.py`.
-2. Abre `project.godot` con Godot 4.x.
-3. Ejecuta la escena principal.
-4. Valida con `python3 tools/validate_project.py`.
+```bash
+cmake -S engine -B build-engine -DCMAKE_BUILD_TYPE=Release
+cmake --build build-engine --parallel
+ctest --test-dir build-engine --output-on-failure
+```
 
-GitHub Actions importa y ejecuta la escena en modo headless con Godot 4.4.1.
-
-## APK
-No se incluye APK todavía. Requiere Export Templates, Android SDK y JDK configurados. El rendimiento no se ha medido en un dispositivo Android real.
-
-## Estructura
-- `Main.gd`: mundo, cámara, HUD, edificios, mobiliario urbano, jugador y peatones.
-- `Player.gd`: controlador de movimiento.
-- `Pedestrian.gd`: movimiento ambiental NPC.
-- `tools/`: generación de texturas y validación.
-- `assets/`: texturas PNG generadas localmente.
+La migración es gradual: el proyecto anterior permanece intacto como referencia hasta que el motor nuevo reproduzca las funciones del juego. No se versionan APKs, bibliotecas compiladas ni cachés.
