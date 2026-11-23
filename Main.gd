@@ -1,6 +1,6 @@
 extends Node3D
 
-# GLOBAL CITY 0.5 — mobile movement, ambient pedestrians and richer surface materials.
+# GLOBAL CITY 0.6 — first low-poly buildings and street furniture, mobile-first.
 
 const WORLD_SIZE: float = 140.0
 const ROAD_WIDTH: float = 10.0
@@ -22,6 +22,12 @@ var mat_parcel: StandardMaterial3D
 var mat_parcel_edge: StandardMaterial3D
 var mat_npc: StandardMaterial3D
 var mat_concrete: StandardMaterial3D
+var mat_building_a: StandardMaterial3D
+var mat_building_b: StandardMaterial3D
+var mat_building_c: StandardMaterial3D
+var mat_windows: StandardMaterial3D
+var mat_roof: StandardMaterial3D
+var mat_furniture: StandardMaterial3D
 var player: CharacterBody3D
 var pedestrians: Array[Node3D] = []
 var mat_skin: StandardMaterial3D
@@ -42,6 +48,7 @@ func _ready() -> void:
 	_make_ground()
 	_make_roads()
 	_make_parcels()
+	_make_city_assets()
 	_make_player()
 	_make_pedestrians()
 	_make_camera()
@@ -61,6 +68,12 @@ func _make_materials() -> void:
 	mat_shirt = _make_material(Color("#2676a8"))
 	mat_pants = _make_material(Color("#263448"))
 	mat_dark = _make_material(Color("#20242a"))
+	mat_building_a = _make_material(Color("#d7c5a6"))
+	mat_building_b = _make_material(Color("#b9c9cb"))
+	mat_building_c = _make_material(Color("#c58f70"))
+	mat_windows = _make_material(Color("#547d91"))
+	mat_roof = _make_material(Color("#777b78"))
+	mat_furniture = _make_material(Color("#454e50"))
 
 func _make_material(color: Color, texture_path: String = "", uv_scale: Vector3 = Vector3.ONE) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
@@ -157,6 +170,63 @@ func _make_parcels() -> void:
 			_add_box_spec(edge_boxes, Vector3(border, 0.025, plot_width + border), Vector3(center.x + half, 0.0, center.z))
 	_make_box_batch("EmptyParcelsBatch", plot_boxes, mat_parcel)
 	_make_box_batch("ParcelBordersBatch", edge_boxes, mat_parcel_edge)
+
+
+func _make_city_assets() -> void:
+	# Low-poly buildings are merged by material to keep draw calls low on Android.
+	var facades_a: Array[Dictionary] = []
+	var facades_b: Array[Dictionary] = []
+	var facades_c: Array[Dictionary] = []
+	var roofs: Array[Dictionary] = []
+	var windows: Array[Dictionary] = []
+	var doors: Array[Dictionary] = []
+	var furniture: Array[Dictionary] = []
+	var trees: Array[Dictionary] = []
+	var lot_index := 0
+	for x_index in range(-2, 2):
+		for z_index in range(-2, 2):
+			var center := Vector3((float(x_index) + 0.5) * ROAD_SPACING, 0.0, (float(z_index) + 0.5) * ROAD_SPACING)
+			var width := 11.5 + float((lot_index * 3) % 4) * 1.2
+			var depth := 11.0 + float((lot_index * 5) % 3) * 1.3
+			var height := 7.5 + float((lot_index * 7) % 5) * 1.45
+			var facade := facades_a
+			if lot_index % 3 == 1:
+				facade = facades_b
+			elif lot_index % 3 == 2:
+				facade = facades_c
+			_add_box_spec(facade, Vector3(width, height, depth), center + Vector3(0.0, height * 0.5, 0.0))
+			_add_box_spec(roofs, Vector3(width + 0.35, 0.28, depth + 0.35), center + Vector3(0.0, height + 0.14, 0.0))
+			# Repeated front windows and a ground-floor entrance.
+			var columns := 3
+			for floor_index in range(maxi(1, int(height / 3.0))):
+				var y := 2.0 + float(floor_index) * 2.5
+				if y > height - 1.0:
+					continue
+				for column in range(columns):
+					var x := center.x + (float(column) - 1.0) * (width * 0.27)
+					_add_box_spec(windows, Vector3(1.15, 1.25, 0.10), Vector3(x, y, center.z - depth * 0.5 - 0.06))
+			_add_box_spec(doors, Vector3(1.35, 2.1, 0.12), Vector3(center.x, 1.05, center.z - depth * 0.5 - 0.07))
+			lot_index += 1
+	# Small trees, benches and lamp posts are also batched instead of spawning many nodes.
+	for side in [-1.0, 1.0]:
+		for segment in range(-2, 3):
+			var z := float(segment) * ROAD_SPACING + 10.0
+			var x := side * (ROAD_WIDTH * 0.5 + 3.0)
+			_add_box_spec(trees, Vector3(0.45, 2.0, 0.45), Vector3(x, 1.0, z))
+			_add_box_spec(trees, Vector3(1.8, 1.8, 1.8), Vector3(x, 2.65, z))
+			var lamp_x := side * (ROAD_WIDTH * 0.5 + 1.5)
+			_add_box_spec(furniture, Vector3(0.16, 4.2, 0.16), Vector3(lamp_x, 2.1, z + 7.0))
+			_add_box_spec(furniture, Vector3(0.75, 0.16, 0.75), Vector3(lamp_x, 4.2, z + 7.0))
+			_add_box_spec(furniture, Vector3(1.8, 0.18, 0.55), Vector3(lamp_x + side * 1.2, 0.55, z - 5.0))
+			_add_box_spec(furniture, Vector3(1.8, 0.65, 0.14), Vector3(lamp_x + side * 1.2, 0.9, z - 5.25))
+	_make_box_batch("BuildingFacadeA", facades_a, mat_building_a)
+	_make_box_batch("BuildingFacadeB", facades_b, mat_building_b)
+	_make_box_batch("BuildingFacadeC", facades_c, mat_building_c)
+	_make_box_batch("BuildingRoofs", roofs, mat_roof)
+	_make_box_batch("BuildingWindows", windows, mat_windows)
+	_make_box_batch("BuildingEntrances", doors, mat_furniture)
+	_make_box_batch("StreetTrees", trees, mat_parcel_edge)
+	_make_box_batch("StreetFurniture", furniture, mat_furniture)
 
 func _add_box_spec(target: Array[Dictionary], size: Vector3, position: Vector3) -> void:
 	target.append({"size": size, "position": position})
@@ -386,7 +456,7 @@ func _make_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	var title := Label.new()
-	title.text = "GLOBAL CITY  |  PROTOTIPO 0.5"
+	title.text = "GLOBAL CITY  |  PROTOTIPO 0.6"
 	title.position = Vector2(24.0, 18.0)
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", Color("#ffffff"))
@@ -396,7 +466,7 @@ func _make_hud() -> void:
 	layer.add_child(title)
 
 	var info := Label.new()
-	info.text = "16 PARCELAS  •  5 PEATONES  •  MOVILIDAD BÁSICA"
+	info.text = "16 EDIFICIOS  •  5 PEATONES  •  CIUDAD EN CONSTRUCCIÓN"
 	info.position = Vector2(24.0, 52.0)
 	info.add_theme_font_size_override("font_size", 15)
 	info.add_theme_color_override("font_color", Color("#f3f5e9"))
