@@ -62,4 +62,6 @@ if __name__ == "__main__":
     ASSET_DIR.mkdir(parents=True, exist_ok=True)
     make_texture("asphalt_tile.png", (56, 63, 70), 10.0, 91)
     make_texture("grass_tile.png", (111, 151, 93), 12.0, 17)
+    make_texture("concrete_tile.png", (164, 166, 158), 7.0, 42)
+    make_texture("pavement_tile.png", (190, 178, 151), 9.0, 23)
     print("Generated 128x128 seamless albedo textures in", ASSET_DIR)
