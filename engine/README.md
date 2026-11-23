@@ -1,32 +1,28 @@
-# GLOBAL ENGINE 0.1 — núcleo
+# GLOBAL ENGINE 0.2 — large-world runtime
 
-Motor de juego propio en C++17. Este núcleo no depende de Godot, Unity, SDL ni de un runtime de terceros.
+Native C++17 / Android NativeActivity / OpenGL ES 3.0 runtime for GLOBAL CITY.
 
-## Compilar y probar
+## Large-world architecture
+- Procedural 4096 x 4096 world grid (64 x 64 chunks, each 64 world units).
+- Lazy chunk generation around the player; 5 x 5 active window (25 resident chunks maximum).
+- Chunks outside the active window are evicted from CPU memory and their GPU buffers are released.
+- Deterministic procedural buildings, facade variation, windows, sidewalks, roads and street props.
+- Collision data is kept only for resident chunks.
+- Separate high-detail and low-detail chunk meshes. Windows and small props are omitted in low LOD.
+- GPU-side per-chunk VBO cache; chunks are uploaded only when first entering the active window.
+- Frustum-sphere and distance culling before issuing draw calls.
+- Dynamic player/NPC geometry uses a separate streaming buffer.
+- Camera follows the player.
 
+## Build and tests
 ```bash
 cmake -S engine -B build-engine -DCMAKE_BUILD_TYPE=Release
 cmake --build build-engine --parallel
 ctest --test-dir build-engine --output-on-failure
 ```
 
-## Contenido actual
-- Mundo procedural basado en datos C++.
-- 16 edificios con fachadas y ventanas.
-- Geometría de terreno, calles, aceras y mobiliario urbano.
-- Movimiento del jugador con aceleración.
-- Colisiones AABB para que el jugador no atraviese edificios.
-- Geometría estática separada de la geometría dinámica.
-- La ciudad estática se convierte a vértices y se sube una vez a la GPU por revisión del mundo.
-- Un búfer de streaming separado se reserva para el jugador y los peatones.
-- Cinco peatones con movimiento ambiental sencillo.
+## Low-end stress profile
+`global_engine_stress` simulates prolonged traversal, chunk creation/eviction and a synthetic crowd workload. It reports CPU frame-time percentiles on the machine running the test and checks the resident chunk cap. It is a repeatable CPU-side stress test, not a GPU/thermal benchmark and not a substitute for profiling on a physical low-end Android device.
 
-## Próximos sistemas
-1. Renderizado por sectores de ciudad con frustum culling.
-2. LOD de edificios, mobiliario y vehículos según distancia.
-3. Sistema de escenas/entidades y recursos.
-4. Cargador de recursos glTF/GLB, texturas y materiales.
-5. Streaming de sectores para ampliar el mundo sin cargar toda la ciudad a la vez.
-6. Audio, animaciones y herramientas de depuración.
-
-El núcleo sí tiene pruebas C++ automatizadas. Todavía no es un editor ni un motor general completo; es la base del runtime específico para GLOBAL CITY.
+## Current limits
+The world grid is finite and generated on demand. This is a streaming/procedural foundation, not yet a full traffic, vehicle, mission, animation, texture-streaming or save-game system. Android uses OpenGL ES 3.0 and requires a device that supports it.
