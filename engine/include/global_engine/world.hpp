@@ -58,6 +58,8 @@ private:
     bool collides_with_building(const Vec3& candidate) const noexcept;
     void append_dynamic_draw_boxes(std::vector<Box>& output) const;
     std::vector<WorldChunk> active_chunks_;
+    int stream_center_x_{0},stream_center_z_{0};
+    bool stream_center_initialized_{false};
     Vec3 player_position_{};
     Vec3 player_velocity_{};
     Vec3 vehicle_position_{96.0f, 0.0f, -6.0f};
