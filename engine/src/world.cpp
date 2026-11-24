@@ -27,15 +27,34 @@ std::uint32_t hash_cell(int x,int z,int salt) noexcept {
 }
 float unit_random(std::uint32_t h) noexcept { return static_cast<float>(h&0x00ffffffU)/16777215.0f; }
 
-void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants) {
+void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants,
+                      const Vec3& forward,float phase,float intensity) {
     const Color skin{0.78f,0.57f,0.43f,1.0f};
-    // Six low-poly parts keep the silhouette readable at mobile resolutions.
-    out.push_back({{p.x-0.13f,0.39f,p.z},{0.13f,0.39f,0.14f},pants,false});
-    out.push_back({{p.x+0.13f,0.39f,p.z},{0.13f,0.39f,0.14f},pants,false});
-    out.push_back({{p.x,1.08f,p.z},{0.27f,0.46f,0.18f},shirt,false});
-    out.push_back({{p.x,1.75f,p.z},{0.19f,0.19f,0.19f},skin,false});
-    out.push_back({{p.x-0.34f,1.08f,p.z},{0.11f,0.37f,0.12f},shirt,false});
-    out.push_back({{p.x+0.34f,1.08f,p.z},{0.11f,0.37f,0.12f},shirt,false});
+    const float amount=std::max(0.0f,std::min(1.0f,intensity));
+    const float forward_length=std::sqrt(forward.x*forward.x+forward.z*forward.z);
+    const Vec3 f=forward_length>1.0e-4f?
+        Vec3{forward.x/forward_length,0.0f,forward.z/forward_length}:Vec3{0.0f,0.0f,-1.0f};
+    const Vec3 right{f.z,0.0f,-f.x};
+    const float swing=std::sin(phase)*0.22f*amount;
+    const float opposite=-swing;
+    const float left_lift=std::max(0.0f,std::sin(phase))*0.11f*amount;
+    const float right_lift=std::max(0.0f,-std::sin(phase))*0.11f*amount;
+    const float bob=0.045f*amount*(0.5f+0.5f*std::sin(phase*2.0f));
+    const Vec3 left_leg=p+right*(-0.13f)+f*swing;
+    const Vec3 right_leg=p+right*0.13f+f*opposite;
+    // The feet lift and shorten slightly, while the pelvis remains stable.
+    out.push_back({{left_leg.x,0.39f+left_lift*0.5f,left_leg.z},
+        {0.13f,0.39f-left_lift*0.5f,0.14f},pants,false});
+    out.push_back({{right_leg.x,0.39f+right_lift*0.5f,right_leg.z},
+        {0.13f,0.39f-right_lift*0.5f,0.14f},pants,false});
+    out.push_back({{p.x,1.08f+bob,p.z},{0.27f,0.46f,0.18f},shirt,false});
+    out.push_back({{p.x,1.75f+bob,p.z},{0.19f,0.19f,0.19f},skin,false});
+    const Vec3 left_arm=p+right*(-0.34f)+f*(-swing*0.82f);
+    const Vec3 right_arm=p+right*0.34f+f*(swing*0.82f);
+    out.push_back({{left_arm.x,1.08f+bob+std::sin(phase+1.5707963f)*0.055f*amount,left_arm.z},
+        {0.11f,0.37f,0.12f},shirt,false});
+    out.push_back({{right_arm.x,1.08f+bob-std::sin(phase+1.5707963f)*0.055f*amount,right_arm.z},
+        {0.11f,0.37f,0.12f},shirt,false});
 }
 } // namespace
 
@@ -228,6 +247,14 @@ void CityWorld::update(float delta,const InputState&input){
     next.z=std::max(-kWorldHalfSize+kPlayerRadius,std::min(kWorldHalfSize-kPlayerRadius,next.z+player_velocity_.z*dt));
     if(!collides_with_building(next))player_position_.z=next.z;else player_velocity_.z=0;
     sync_chunks();
+    const float player_speed=std::sqrt(player_velocity_.x*player_velocity_.x+
+        player_velocity_.z*player_velocity_.z);
+    if(player_speed>0.10f){
+        player_facing_={player_velocity_.x/player_speed,0.0f,player_velocity_.z/player_speed};
+        player_animation_phase_+=dt*(7.0f+player_speed*0.35f);
+    }else{
+        player_animation_phase_+=dt*1.25f;
+    }
     float mdx=player_position_.x-mission_target_.x;
     float mdz=player_position_.z-mission_target_.z;
     mission_distance_=std::sqrt(mdx*mdx+mdz*mdz);
@@ -244,7 +271,11 @@ void CityWorld::update(float delta,const InputState&input){
     }
 }
 void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
-    append_humanoid(out,player_position_,{0.12f,0.35f,0.62f,1},{0.12f,0.15f,0.19f,1});
+    const float player_speed=std::sqrt(player_velocity_.x*player_velocity_.x+
+        player_velocity_.z*player_velocity_.z);
+    append_humanoid(out,player_position_,{0.12f,0.35f,0.62f,1},{0.12f,0.15f,0.19f,1},
+        player_facing_,player_animation_phase_,
+        std::min(1.0f,player_speed/kMoveSpeed));
     if(mission_stage_==MissionStage::DeliverPackage)
         out.push_back({{player_position_.x+0.30f,1.18f,player_position_.z-0.18f},
             {0.28f,0.25f,0.25f},{0.68f,0.43f,0.20f,1},false});
@@ -255,7 +286,8 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
         const float z=player_position_.z+std::sin(phase)*radius;
         const Color shirt=(i%2==0)?Color{0.68f,0.30f,0.18f,1}:Color{0.12f,0.35f,0.55f,1};
         const Color pants=(i%2==0)?Color{0.18f,0.20f,0.22f,1}:Color{0.30f,0.28f,0.23f,1};
-        append_humanoid(out,{x,0,z},shirt,pants);
+        const Vec3 walking_forward{-std::sin(phase),0.0f,std::cos(phase)};
+        append_humanoid(out,{x,0,z},shirt,pants,walking_forward,npc_elapsed_*6.2f+i*1.4f,0.82f);
     }
 
     // Parked blue compact delivery car: body, cabin, front/rear glass and four tyres.
@@ -277,11 +309,12 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     const Color beacon=mission_state_==MissionState::Completed?
         Color{0.18f,0.78f,0.34f,1}:Color{0.05f,0.82f,0.96f,1};
     const float marker_x=mission_target_.x,marker_z=mission_target_.z+4.0f;
-    out.push_back({{marker_x,0.18f,marker_z},{2.8f,0.12f,2.8f},beacon,false});
-    out.push_back({{marker_x,3.25f,marker_z},{0.16f,3.0f,0.16f},beacon,false});
-    out.push_back({{marker_x,6.35f,marker_z},{1.25f,0.13f,0.13f},beacon,false});
-    out.push_back({{marker_x,6.35f,marker_z},{0.13f,0.13f,1.25f},beacon,false});
-    out.push_back({{marker_x,7.05f,marker_z},{0.42f,0.42f,0.42f},beacon,false});
+    const float pulse=0.5f+0.5f*std::sin(npc_elapsed_*3.2f);
+    out.push_back({{marker_x,0.18f,marker_z},{2.8f+0.22f*pulse,0.12f,2.8f+0.22f*pulse},beacon,false});
+    out.push_back({{marker_x,3.05f+0.28f*pulse,marker_z},{0.16f,2.75f+0.30f*pulse,0.16f},beacon,false});
+    out.push_back({{marker_x,6.35f+0.35f*pulse,marker_z},{1.25f+0.10f*pulse,0.13f,0.13f},beacon,false});
+    out.push_back({{marker_x,6.35f+0.35f*pulse,marker_z},{0.13f,0.13f,1.25f+0.10f*pulse},beacon,false});
+    out.push_back({{marker_x,7.05f+0.55f*pulse,marker_z},{0.42f+0.10f*pulse,0.42f+0.10f*pulse,0.42f+0.10f*pulse},beacon,false});
 }
 void CityWorld::gather_dynamic_draw_boxes(std::vector<Box>&out)const{
     out.clear();
