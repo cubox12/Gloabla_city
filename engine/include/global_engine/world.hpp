@@ -14,6 +14,8 @@ struct Color { float r{1.0f}, g{1.0f}, b{1.0f}, a{1.0f}; };
 struct Box { Vec3 center; Vec3 half_extent; Color color; bool solid{false}; };
 struct InputState { float move_x{0.0f}, move_z{0.0f}; };
 
+enum class MissionState : std::uint8_t { InProgress, Completed };
+
 struct WorldChunk {
     int x{0}, z{0};
     float center_x{0.0f}, center_z{0.0f}, bounds_radius{48.0f};
@@ -44,6 +46,10 @@ public:
     std::size_t static_box_count() const noexcept { return streaming_stats_.resident_boxes; }
     std::size_t building_count() const noexcept { return active_building_count_; }
     bool player_intersects_building() const noexcept;
+    MissionState mission_state() const noexcept { return mission_state_; }
+    bool mission_completed() const noexcept { return mission_state_ == MissionState::Completed; }
+    const Vec3& mission_target() const noexcept { return mission_target_; }
+    float mission_distance() const noexcept { return mission_distance_; }
 private:
     WorldChunk generate_chunk(int chunk_x, int chunk_z) const;
     void sync_chunks();
@@ -52,6 +58,9 @@ private:
     std::vector<WorldChunk> active_chunks_;
     Vec3 player_position_{};
     Vec3 player_velocity_{};
+    Vec3 mission_target_{96.0f, 0.0f, -6.0f};
+    float mission_distance_{96.0f};
+    MissionState mission_state_{MissionState::InProgress};
     float npc_elapsed_{0.0f};
     std::size_t active_building_count_{0};
     std::uint64_t static_geometry_revision_{0};
