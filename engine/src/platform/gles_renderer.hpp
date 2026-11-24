@@ -20,7 +20,7 @@ private:
         int x{0},z{0}; GLuint high_buffer{0},low_buffer{0};
         GLsizei high_count{0},low_count{0};
     };
-    void upload_chunk(const WorldChunk&source,GpuChunk&target);
+    void upload_chunk(const WorldChunk&source,GpuChunk&target,bool high_detail);
     void draw_hud(const CityWorld&world,const CameraState&camera);
     GLuint program_{0},dynamic_vertex_buffer_{0},hud_vertex_buffer_{0},control_vertex_buffer_{0};
     GLint mvp_location_{-1},view_location_{-1};
