@@ -19,6 +19,23 @@ int main(){
     assert(up.move_z< -0.99f&&std::abs(up.move_x)<1.0e-5f);
     const VirtualStickOutput down=map_virtual_stick(stick.center_x,stick.center_y+stick.radius,stick);
     assert(down.move_z>0.99f&&std::abs(down.move_x)<1.0e-5f);
+    constexpr float camera_yaw=-1.45f;
+    const WorldMovement forward=camera_relative_movement(0.0f,-1.0f,camera_yaw);
+    const WorldMovement backward=camera_relative_movement(0.0f,1.0f,camera_yaw);
+    const WorldMovement rightward=camera_relative_movement(1.0f,0.0f,camera_yaw);
+    const WorldMovement leftward=camera_relative_movement(-1.0f,0.0f,camera_yaw);
+    assert(std::abs(forward.move_x+std::sin(camera_yaw))<1.0e-5f);
+    assert(std::abs(forward.move_z+std::cos(camera_yaw))<1.0e-5f);
+    assert(std::abs(backward.move_x+forward.move_x)<1.0e-5f);
+    assert(std::abs(backward.move_z+forward.move_z)<1.0e-5f);
+    assert(std::abs(rightward.move_x-std::cos(camera_yaw))<1.0e-5f);
+    assert(std::abs(rightward.move_z+std::sin(camera_yaw))<1.0e-5f);
+    assert(std::abs(leftward.move_x+rightward.move_x)<1.0e-5f);
+    assert(std::abs(leftward.move_z+rightward.move_z)<1.0e-5f);
+    const WorldMovement default_forward=camera_relative_movement(0.0f,-1.0f,0.0f);
+    const WorldMovement default_right=camera_relative_movement(1.0f,0.0f,0.0f);
+    assert(std::abs(default_forward.move_x)<1.0e-6f&&default_forward.move_z< -0.99f);
+    assert(default_right.move_x>0.99f&&std::abs(default_right.move_z)<1.0e-6f);
     const VirtualStickOutput diagonal=map_virtual_stick(stick.center_x+stick.radius*2.0f,
         stick.center_y-stick.radius*2.0f,stick);
     assert(diagonal.magnitude<=1.0f&&std::abs(diagonal.move_x)<=1.0f&&std::abs(diagonal.move_z)<=1.0f);
