@@ -49,7 +49,8 @@ inline VirtualStickOutput map_virtual_stick(float x, float y,
 
     VirtualStickOutput out;
     out.move_x = direction_x * strength;
-    out.move_z = -direction_y * strength;
+    // World forward is -Z (camera starts behind the player on +Z).
+    out.move_z = direction_y * strength;
     out.knob_x = direction_x * raw_magnitude;
     out.knob_y = direction_y * raw_magnitude;
     out.magnitude = raw_magnitude;
