@@ -99,7 +99,7 @@ int32_t input(android_app* app,AInputEvent* e) {
             const float dy=AMotionEvent_getY(e,0)-AMotionEvent_getY(e,1);
             const float d=std::sqrt(dx*dx+dy*dy);
             if(s->pinch>1.0f&&d>1.0f)
-                s->camera.distance=std::max(24.0f,std::min(125.0f,s->camera.distance*s->pinch/d));
+                s->camera.distance=std::max(7.0f,std::min(55.0f,s->camera.distance*s->pinch/d));
             s->pinch=d;return 1;
         }
         s->pinch=0;
