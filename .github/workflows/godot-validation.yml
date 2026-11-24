@@ -1,4 +1,4 @@
-name: GLOBAL CITY and GLOBAL ENGINE validation
+name: GLOBAL CITY-BETA 0.1 validation
 
 on:
   push:
@@ -77,6 +77,33 @@ jobs:
       - name: Compile native Android debug APK
         working-directory: android
         run: gradle --no-daemon :app:assembleDebug
+      - name: Verify packaged native entry points and app identity
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          mkdir -p /tmp/global-city-beta-apk
+          unzip -q "$APK" -d /tmp/global-city-beta-apk
+          LIB="/tmp/global-city-beta-apk/lib/arm64-v8a/libglobalengine.so"
+          test -s "$LIB"
+          NM="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]ANativeActivity_onCreate
+        uses: actions/upload-artifact@v4
+        with:
+          name: global-city-beta-0.1-arm64-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+          "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]android_main
+        uses: actions/upload-artifact@v4
+        with:
+          name: global-city-beta-0.1-arm64-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='0.1'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "application-label:'GLOBAL CITY-BETA'"
       - name: Upload native debug APK artifact
         uses: actions/upload-artifact@v4
         with:
