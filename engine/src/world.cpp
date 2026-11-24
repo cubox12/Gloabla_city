@@ -68,7 +68,7 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
     WorldChunk chunk;chunk.x=cx;chunk.z=cz;
     // Reserve for the worst facade/window pattern plus road markings and street furniture.
     chunk.high_detail_boxes.reserve(768);
-    chunk.low_detail_boxes.reserve(64);
+    chunk.low_detail_boxes.reserve(192);
     chunk.collision_boxes.reserve(4);
     const float ox=static_cast<float>(cx)*kChunkSize,oz=static_cast<float>(cz)*kChunkSize;
     chunk.center_x=ox+kChunkSize*0.5f;chunk.center_z=oz+kChunkSize*0.5f;
