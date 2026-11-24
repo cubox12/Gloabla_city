@@ -298,11 +298,11 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         for(int side=-1;side<=1;side+=2){
             const float tx=x+static_cast<float>(side)*10.8f;
             const float tz=z;
-            Box pole{{tx,2.05f,tz},{0.075f,2.05f,0.075f},{0.25f,0.27f,0.28f,1},false};
+            Box pole{{tx,2.05f,tz},{0.075f,2.05f,0.075f},{0.26f,0.28f,0.29f,1},false};
             pole.shape=GeometryShape::Cylinder;
             add(pole,false);
             Box arm{{tx+static_cast<float>(side)*0.66f,4.02f,tz},
-                {0.075f,0.68f,0.075f},{0.25f,0.27f,0.28f,1},false};
+                {0.075f,0.68f,0.075f},{0.26f,0.28f,0.29f,1},false};
             arm.shape=GeometryShape::Cylinder;
             arm.yaw=1.5707963f;
             arm.pitch=1.5707963f;
@@ -426,7 +426,7 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
         const Color shirt=(i%2==0)?Color{0.68f,0.30f,0.18f,1}:Color{0.12f,0.35f,0.55f,1};
         const Color pants=(i%2==0)?Color{0.18f,0.20f,0.22f,1}:Color{0.30f,0.28f,0.23f,1};
         const Vec3 walking_forward{-std::sin(phase),0.0f,std::cos(phase)};
-        append_humanoid(out,{x,0,z},shirt,pants,walking_forward,npc_elapsed_*6.2f+i*1.4f,0.82f);
+        append_humanoid(out,{x,0,z},shirt,pants,walking_forward,npc_elapsed_*6.2f+static_cast<float>(i)*1.4f,0.82f);
     }
 
     // Parked blue compact delivery car: body, cabin, front/rear glass and four tyres.
