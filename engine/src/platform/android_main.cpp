@@ -5,7 +5,10 @@
 #include <android_native_app_glue.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
+#include <SLES/OpenSLES.h>
+#include <SLES/OpenSLES_Android.h>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <unordered_map>
@@ -15,16 +18,82 @@ namespace {
 using namespace global_engine;
 using namespace global_engine::platform;
 struct Touch { float x,y,ox,oy; bool joystick; };
+struct AudioFeedback {
+    SLObjectItf engine_object{nullptr},output_mix_object{nullptr},player_object{nullptr};
+    SLEngineItf engine{nullptr};
+    SLPlayItf play_interface{nullptr};
+    SLAndroidSimpleBufferQueueItf queue{nullptr};
+    std::vector<SLint16> samples;
+    std::atomic<bool> busy{false};
+
+    static void queue_callback(SLAndroidSimpleBufferQueueItf,void* context){
+        static_cast<AudioFeedback*>(context)->busy.store(false);
+    }
+    bool initialize(){
+        if(slCreateEngine(&engine_object,0,nullptr,0,nullptr,nullptr)!=SL_RESULT_SUCCESS)return false;
+        if((*engine_object)->Realize(engine_object,SL_BOOLEAN_FALSE)!=SL_RESULT_SUCCESS)return false;
+        if((*engine_object)->GetInterface(engine_object,SL_IID_ENGINE,&engine)!=SL_RESULT_SUCCESS)return false;
+        if((*engine)->CreateOutputMix(engine,&output_mix_object,0,nullptr,nullptr)!=SL_RESULT_SUCCESS)return false;
+        if((*output_mix_object)->Realize(output_mix_object,SL_BOOLEAN_FALSE)!=SL_RESULT_SUCCESS)return false;
+        SLDataLocator_AndroidSimpleBufferQueue locator{SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE,2};
+        SLDataFormat_PCM format{SL_DATAFORMAT_PCM,2,SL_SAMPLINGRATE_44_1,
+            SL_PCMSAMPLEFORMAT_FIXED_16,SL_PCMSAMPLEFORMAT_FIXED_16,
+            SL_SPEAKER_FRONT_LEFT|SL_SPEAKER_FRONT_RIGHT,SL_BYTEORDER_LITTLEENDIAN};
+        SLDataSource source{&locator,&format};
+        SLDataLocator_OutputMix sink_locator{SL_DATALOCATOR_OUTPUTMIX,output_mix_object};
+        SLDataSink sink{&sink_locator,nullptr};
+        const SLInterfaceID ids[]={SL_IID_ANDROIDSIMPLEBUFFERQUEUE};
+        const SLboolean required[]={SL_BOOLEAN_TRUE};
+        if((*engine)->CreateAudioPlayer(engine,&player_object,&source,&sink,1,ids,required)!=SL_RESULT_SUCCESS)return false;
+        if((*player_object)->Realize(player_object,SL_BOOLEAN_FALSE)!=SL_RESULT_SUCCESS)return false;
+        if((*player_object)->GetInterface(player_object,SL_IID_PLAY,&play_interface)!=SL_RESULT_SUCCESS)return false;
+        if((*player_object)->GetInterface(player_object,SL_IID_ANDROIDSIMPLEBUFFERQUEUE,&queue)!=SL_RESULT_SUCCESS)return false;
+        if((*queue)->RegisterCallback(queue,queue_callback,this)!=SL_RESULT_SUCCESS)return false;
+        return true;
+    }
+    void play(int effect){
+        if(!queue||!play_interface||busy.exchange(true))return;
+        const int frames=effect==2?4410:10584;
+        samples.resize(static_cast<std::size_t>(frames)*2U);
+        for(int i=0;i<frames;++i){
+            const float t=static_cast<float>(i)/44100.0f;
+            float frequency=effect==0?520.0f:effect==1?660.0f:145.0f;
+            if(effect==0&&t>0.075f)frequency=880.0f;
+            if(effect==1)frequency=t<0.08f?523.0f:(t<0.16f?659.0f:784.0f);
+            const float envelope=effect==2?std::max(0.0f,1.0f-static_cast<float>(i)/frames):
+                std::min(1.0f,static_cast<float>(i)/600.0f)*std::max(0.0f,1.0f-static_cast<float>(i)/frames);
+            const float wave=std::sin(6.28318530718f*frequency*t)*envelope*(effect==2?0.13f:0.19f);
+            const SLint16 sample=static_cast<SLint16>(wave*32767.0f);
+            samples[static_cast<std::size_t>(i)*2U]=sample;
+            samples[static_cast<std::size_t>(i)*2U+1U]=sample;
+        }
+        (*queue)->Clear(queue);
+        if((*queue)->Enqueue(queue,samples.data(),static_cast<SLuint32>(samples.size()*sizeof(SLint16)))!=SL_RESULT_SUCCESS){
+            busy.store(false);return;
+        }
+        (*play_interface)->SetPlayState(play_interface,SL_PLAYSTATE_PLAYING);
+    }
+    void shutdown(){
+        if(play_interface)(*play_interface)->SetPlayState(play_interface,SL_PLAYSTATE_STOPPED);
+        if(player_object)(*player_object)->Destroy(player_object);
+        if(output_mix_object)(*output_mix_object)->Destroy(output_mix_object);
+        if(engine_object)(*engine_object)->Destroy(engine_object);
+        player_object=nullptr;output_mix_object=nullptr;engine_object=nullptr;
+        engine=nullptr;play_interface=nullptr;queue=nullptr;samples.clear();busy.store(false);
+    }
+};
 struct State {
-    CityWorld world; CameraState camera; GlesRenderer renderer; InputState input;
+    CityWorld world; CameraState camera; GlesRenderer renderer; InputState input; AudioFeedback audio;
     EGLDisplay display{EGL_NO_DISPLAY}; EGLSurface surface{EGL_NO_SURFACE};
     EGLContext context{EGL_NO_CONTEXT}; int width{1},height{1};
     bool ready{false};
+    float step_elapsed{0.0f};
     std::unordered_map<int,Touch> touches;
     std::chrono::steady_clock::time_point last;
 };
 void destroy_egl(State& s) {
     if(s.ready) s.renderer.shutdown();
+    s.audio.shutdown();
     s.ready=false;
     if(s.display!=EGL_NO_DISPLAY){
         eglMakeCurrent(s.display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
@@ -55,6 +124,7 @@ bool init_egl(State& s,ANativeWindow* window) {
        eglMakeCurrent(s.display,s.surface,s.surface,s.context)!=EGL_TRUE)return false;
     s.width=ANativeWindow_getWidth(window);s.height=ANativeWindow_getHeight(window);
     s.renderer.resize(s.width,s.height);s.ready=s.renderer.initialize();
+    if(s.ready)(void)s.audio.initialize();
     s.last=std::chrono::steady_clock::now();return s.ready;
 }
 void command(android_app* app,int32_t cmd) {
@@ -147,7 +217,18 @@ void android_main(android_app* app) {
         if(s.ready&&s.display!=EGL_NO_DISPLAY){
             const auto now=std::chrono::steady_clock::now();
             const float dt=std::chrono::duration<float>(now-s.last).count();s.last=now;
-            s.world.update(dt,s.input);s.renderer.render(s.world,s.camera);
+            const MissionStage previous_stage=s.world.mission_stage();
+            s.world.update(dt,s.input);
+            const MissionStage current_stage=s.world.mission_stage();
+            if(previous_stage!=current_stage){
+                if(current_stage==MissionStage::DeliverPackage)s.audio.play(0);
+                else if(current_stage==MissionStage::Completed)s.audio.play(1);
+                s.step_elapsed=0.0f;
+            }else if(std::abs(s.input.move_x)+std::abs(s.input.move_z)>0.25f){
+                s.step_elapsed+=dt;
+                if(s.step_elapsed>=0.46f){s.audio.play(2);s.step_elapsed=0.0f;}
+            }else s.step_elapsed=0.0f;
+            s.renderer.render(s.world,s.camera);
             if(eglSwapBuffers(s.display,s.surface)!=EGL_TRUE){
                 const EGLint err=eglGetError();GE_LOG("eglSwapBuffers: 0x%x",err);
                 if(err==EGL_BAD_SURFACE||err==EGL_CONTEXT_LOST)destroy_egl(s);
