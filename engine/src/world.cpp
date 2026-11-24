@@ -96,8 +96,8 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         }
     }
 
-    const Color facades[]={{0.73f,0.65f,0.54f,1},{0.48f,0.62f,0.65f,1},
-        {0.70f,0.45f,0.35f,1},{0.62f,0.62f,0.68f,1},{0.69f,0.68f,0.59f,1}};
+    const Color facades[]={{0.76f,0.61f,0.43f,1},{0.34f,0.60f,0.64f,1},
+        {0.73f,0.39f,0.29f,1},{0.48f,0.57f,0.70f,1},{0.61f,0.66f,0.44f,1}};
     // Small low-poly street trees make the avenues feel inhabited at a low GPU cost.
     const Color bark{0.31f,0.20f,0.13f,1};
     const Color leaf_a{0.16f,0.36f,0.22f,1};
