@@ -48,6 +48,7 @@ private:
     WorldChunk generate_chunk(int chunk_x, int chunk_z) const;
     void sync_chunks();
     bool collides_with_building(const Vec3& candidate) const noexcept;
+    void append_dynamic_draw_boxes(std::vector<Box>& output) const;
     std::vector<WorldChunk> active_chunks_;
     Vec3 player_position_{};
     Vec3 player_velocity_{};
