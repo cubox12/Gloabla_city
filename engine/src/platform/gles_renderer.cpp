@@ -142,7 +142,7 @@ void GlesRenderer::resize(int w,int h){
 void GlesRenderer::upload_chunk(const WorldChunk&src,GpuChunk&dst){
     dst.x=src.x;dst.z=src.z;
     auto upload=[](const std::vector<Box>&boxes,GLuint&buffer,GLsizei&count){
-        std::vector<float>vertices;std::size_t n=0;for(const Box&b:boxes)n+=36U*7U;
+        std::vector<float>vertices;const std::size_t n=boxes.size()*36U*7U;
         vertices.reserve(n);for(const Box&b:boxes)append_box(vertices,b);
         if(!buffer)glGenBuffers(1,&buffer);
         glBindBuffer(GL_ARRAY_BUFFER,buffer);
