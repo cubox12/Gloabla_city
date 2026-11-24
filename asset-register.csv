@@ -3,3 +3,5 @@ World geometry,Original procedural GDScript,Original project code,None,Main.gd,S
 Static character,Original procedural GDScript,Original project code,None,Main.gd,Low-poly mesh parts merged by material,Created
 Asphalt tile,Procedural periodic noise generated in this project,Original generated texture,None,assets/asphalt_tile.png,128x128 seamless albedo,Created
 Grass tile,Procedural periodic noise generated in this project,Original generated texture,None,assets/grass_tile.png,128x128 seamless albedo,Created
+Street trees,Original procedural C++ geometry,Original project code,None,engine/src/world.cpp,Low-poly mesh boxes added to streamed city chunks,Created
+Audio cues,Original synthesized PCM at runtime,Original project code,None,engine/src/platform/android_main.cpp,OpenSL ES synthesized footsteps pickup and delivery cues,Created
