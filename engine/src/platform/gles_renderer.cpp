@@ -102,8 +102,8 @@ bool GlesRenderer::initialize(){
         "outColor=vec4(mix(grade,sky,fog),vColor.a);}\n";
     glClearColor(0.55f,0.72f,0.82f,1.0f);
     gpu_chunks_.reserve(25);
-    dynamic_boxes_.reserve(52);
-    dynamic_vertices_.reserve(52U*36U*7U);
+    dynamic_boxes_.reserve(66);
+    dynamic_vertices_.reserve(66U*36U*7U);
     hud_vertices_.reserve(36000U);
     control_vertices_.reserve(32U*3U*7U*12U);
     GLuint v=compile(GL_VERTEX_SHADER,vs);
