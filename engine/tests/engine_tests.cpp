@@ -1,11 +1,29 @@
 #include "global_engine/world.hpp"
+#include "global_engine/touch_controls.hpp"
 #include <cassert>
 #include <cmath>
 #include <iostream>
 #include <vector>
 
 int main(){
-    global_engine::CityWorld world;
+    using namespace global_engine;
+    const VirtualStickLayout stick=virtual_stick_layout(2400,1080);
+    assert(stick.radius>58.0f);
+    assert(is_virtual_stick_touch(stick.center_x,stick.center_y,2400,1080));
+    assert(!is_virtual_stick_touch(stick.center_x+stick.radius*2.0f,stick.center_y,2400,1080));
+    const VirtualStickOutput idle=map_virtual_stick(stick.center_x,stick.center_y,stick);
+    assert(std::abs(idle.move_x)<1.0e-6f&&std::abs(idle.move_z)<1.0e-6f);
+    const VirtualStickOutput right=map_virtual_stick(stick.center_x+stick.radius,stick.center_y,stick);
+    assert(right.move_x>0.99f&&std::abs(right.move_z)<1.0e-5f);
+    const VirtualStickOutput up=map_virtual_stick(stick.center_x,stick.center_y-stick.radius,stick);
+    assert(up.move_z>0.99f&&std::abs(up.move_x)<1.0e-5f);
+    const VirtualStickOutput diagonal=map_virtual_stick(stick.center_x+stick.radius*2.0f,
+        stick.center_y-stick.radius*2.0f,stick);
+    assert(diagonal.magnitude<=1.0f&&std::abs(diagonal.move_x)<=1.0f&&std::abs(diagonal.move_z)<=1.0f);
+    const VirtualStickOutput deadzone=map_virtual_stick(stick.center_x+stick.radius*0.05f,stick.center_y,stick);
+    assert(std::abs(deadzone.move_x)<1.0e-6f);
+
+    CityWorld world;
     assert(world.streaming_stats().active_chunks==25);
     assert(world.building_count()==100);
     assert(world.static_box_count()>1000);
