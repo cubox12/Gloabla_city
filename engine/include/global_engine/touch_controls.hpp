@@ -56,4 +56,17 @@ inline VirtualStickOutput map_virtual_stick(float x, float y,
     out.magnitude = raw_magnitude;
     return out;
 }
+struct WorldMovement {
+    float move_x{0.0f};
+    float move_z{0.0f};
+};
+
+// Convert screen-relative stick input into world axes using the camera heading.
+// move_z < 0 means forward; camera yaw defines the view direction.
+inline WorldMovement camera_relative_movement(float move_x, float move_z,
+                                               float camera_yaw) noexcept {
+    const float c = std::cos(camera_yaw);
+    const float s = std::sin(camera_yaw);
+    return {c * move_x + s * move_z, -s * move_x + c * move_z};
+}
 } // namespace global_engine
