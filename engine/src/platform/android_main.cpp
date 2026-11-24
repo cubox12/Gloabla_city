@@ -92,6 +92,24 @@ struct State {
     std::unordered_map<int,Touch> touches;
     std::chrono::steady_clock::time_point last;
 };
+void draw_native_fallback(ANativeWindow* window) {
+    if(!window)return;
+    ANativeWindow_Buffer buffer{};
+    if(ANativeWindow_lock(window,&buffer,nullptr)!=0)return;
+    if(buffer.format==WINDOW_FORMAT_RGB_565){
+        auto* pixels=static_cast<std::uint16_t*>(buffer.bits);
+        const std::uint16_t color=static_cast<std::uint16_t>(((42U>>3U)<<11U)|((76U>>2U)<<5U)|(104U>>3U));
+        for(int y=0;y<buffer.height;++y)
+            std::fill_n(pixels+static_cast<std::ptrdiff_t>(y)*buffer.stride,buffer.width,color);
+    }else{
+        auto* pixels=static_cast<std::uint32_t*>(buffer.bits);
+        // Little-endian RGBA/RGBX byte order: muted blue-gray startup diagnostic.
+        constexpr std::uint32_t color=0xFF684C2AU;
+        for(int y=0;y<buffer.height;++y)
+            std::fill_n(pixels+static_cast<std::ptrdiff_t>(y)*buffer.stride,buffer.width,color);
+    }
+    ANativeWindow_unlockAndPost(window);
+}
 void destroy_egl(State& s) {
     if(s.ready) s.renderer.shutdown();
     s.audio.shutdown();
@@ -145,6 +163,7 @@ bool init_egl(State& s,ANativeWindow* window) {
     s.renderer.resize(s.width,s.height);
     s.ready=s.renderer.initialize();
     if(!s.ready){
+        s.renderer.shutdown();
         GE_LOG("Renderer initialization failed; keeping EGL alive for visible fallback diagnostics");
         glViewport(0,0,s.width,s.height);
         glClearColor(0.30f,0.43f,0.52f,1.0f);
@@ -164,7 +183,7 @@ bool init_egl(State& s,ANativeWindow* window) {
 void command(android_app* app,int32_t cmd) {
     auto* s=static_cast<State*>(app->userData);if(!s)return;
     if(cmd==APP_CMD_INIT_WINDOW&&app->window){
-        if(!init_egl(*s,app->window)){GE_LOG("EGL initialization failed; releasing partial state");destroy_egl(*s);}
+        if(!init_egl(*s,app->window)){GE_LOG("EGL initialization failed; showing CPU window fallback");destroy_egl(*s);draw_native_fallback(app->window);}
     } else if(cmd==APP_CMD_TERM_WINDOW)destroy_egl(*s);
     else if(cmd==APP_CMD_WINDOW_RESIZED&&app->window&&s->display!=EGL_NO_DISPLAY){
         s->width=ANativeWindow_getWidth(app->window);s->height=ANativeWindow_getHeight(app->window);
