@@ -14,6 +14,8 @@ constexpr float kMoveSpeed=6.5f;
 constexpr float kAcceleration=22.0f;
 constexpr int kChunkRadius=2;
 constexpr int kChunksPerAxis=64;
+constexpr float kMissionCompleteRadius=4.25f;
+constexpr std::size_t kDynamicBoxCount=51;
 float clamp_input(float v) noexcept { return std::max(-1.0f,std::min(1.0f,v)); }
 bool overlap(float a0,float a1,float b0,float b1) noexcept { return a0<b1&&a1>b0; }
 std::uint32_t hash_cell(int x,int z,int salt) noexcept {
@@ -23,18 +25,30 @@ std::uint32_t hash_cell(int x,int z,int salt) noexcept {
     h^=h>>13U;h*=0x85ebca6bU;h^=h>>16U;return h;
 }
 float unit_random(std::uint32_t h) noexcept { return static_cast<float>(h&0x00ffffffU)/16777215.0f; }
+
+void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants) {
+    const Color skin{0.78f,0.57f,0.43f,1.0f};
+    // Six low-poly parts keep the silhouette readable at mobile resolutions.
+    out.push_back({{p.x-0.13f,0.39f,p.z},{0.13f,0.39f,0.14f},pants,false});
+    out.push_back({{p.x+0.13f,0.39f,p.z},{0.13f,0.39f,0.14f},pants,false});
+    out.push_back({{p.x,1.08f,p.z},{0.27f,0.46f,0.18f},shirt,false});
+    out.push_back({{p.x,1.75f,p.z},{0.19f,0.19f,0.19f},skin,false});
+    out.push_back({{p.x-0.34f,1.08f,p.z},{0.11f,0.37f,0.12f},shirt,false});
+    out.push_back({{p.x+0.34f,1.08f,p.z},{0.11f,0.37f,0.12f},shirt,false});
+}
 } // namespace
+
 Vec3 Vec3::operator+(const Vec3&r)const noexcept{return{x+r.x,y+r.y,z+r.z};}
 Vec3 Vec3::operator-(const Vec3&r)const noexcept{return{x-r.x,y-r.y,z-r.z};}
 Vec3 Vec3::operator*(float s)const noexcept{return{x*s,y*s,z*s};}
 
 CityWorld::CityWorld(){reset();}
+
 WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
     WorldChunk chunk;chunk.x=cx;chunk.z=cz;
-    // A chunk contains at most four buildings with up to eleven window rows each.
-    // Reserve once so procedural generation does not repeatedly grow these vectors.
-    chunk.high_detail_boxes.reserve(640);
-    chunk.low_detail_boxes.reserve(32);
+    // Reserve for the worst facade/window pattern plus road markings and street furniture.
+    chunk.high_detail_boxes.reserve(768);
+    chunk.low_detail_boxes.reserve(64);
     chunk.collision_boxes.reserve(4);
     const float ox=static_cast<float>(cx)*kChunkSize,oz=static_cast<float>(cz)*kChunkSize;
     chunk.center_x=ox+kChunkSize*0.5f;chunk.center_z=oz+kChunkSize*0.5f;
@@ -42,20 +56,28 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         chunk.high_detail_boxes.push_back(b);
         if(low)chunk.low_detail_boxes.push_back(b);
     };
-    // Every chunk owns its terrain and road segments; adjacent edges line up exactly.
-    add({{chunk.center_x,-0.18f,chunk.center_z},{32,0.18f,32},{0.34f,0.48f,0.30f,1},false},true);
+
+    // Grass lots, asphalt, raised sidewalks and dashed center markings.
+    add({{chunk.center_x,-0.18f,chunk.center_z},{32,0.18f,32},{0.30f,0.42f,0.29f,1},false},true);
     for(int lane=0;lane<2;++lane){
         const float x=ox+static_cast<float>(lane)*32.0f;
         const float z=oz+static_cast<float>(lane)*32.0f;
-        add({{x,0.015f,chunk.center_z},{4.0f,0.035f,32},{0.19f,0.21f,0.22f,1},false},true);
-        add({{chunk.center_x,0.015f,z},{32,0.035f,4.0f},{0.19f,0.21f,0.22f,1},false},true);
+        add({{x,0.015f,chunk.center_z},{4.0f,0.035f,32},{0.16f,0.18f,0.19f,1},false},true);
+        add({{chunk.center_x,0.015f,z},{32,0.035f,4.0f},{0.16f,0.18f,0.19f,1},false},true);
         for(float side:{-1.0f,1.0f}){
-            add({{x+side*5.2f,0.055f,chunk.center_z},{1.0f,0.07f,32},{0.65f,0.65f,0.60f,1},false},true);
-            add({{chunk.center_x,0.055f,z+side*5.2f},{32,0.07f,1.0f},{0.65f,0.65f,0.60f,1},false},true);
+            add({{x+side*5.2f,0.055f,chunk.center_z},{1.0f,0.07f,32},{0.62f,0.62f,0.57f,1},false},true);
+            add({{chunk.center_x,0.055f,z+side*5.2f},{32,0.07f,1.0f},{0.62f,0.62f,0.57f,1},false},true);
+        }
+        const Color lane_paint{0.84f,0.76f,0.47f,1};
+        for(int mark=0;mark<8;++mark){
+            const float offset=4.0f+static_cast<float>(mark)*8.0f;
+            add({{x,0.075f,oz+offset+1.7f},{0.12f,0.035f,1.7f},lane_paint,false},true);
+            add({{ox+offset+1.7f,0.075f,z},{1.7f,0.035f,0.12f},lane_paint,false},true);
         }
     }
-    const Color facades[]={{0.78f,0.68f,0.53f,1},{0.56f,0.68f,0.70f,1},
-        {0.75f,0.49f,0.37f,1},{0.66f,0.65f,0.72f,1},{0.72f,0.72f,0.62f,1}};
+
+    const Color facades[]={{0.73f,0.65f,0.54f,1},{0.48f,0.62f,0.65f,1},
+        {0.70f,0.45f,0.35f,1},{0.62f,0.62f,0.68f,1},{0.69f,0.68f,0.59f,1}};
     for(int bx=0;bx<2;++bx)for(int bz=0;bz<2;++bz){
         const int gx=cx*2+bx,gz=cz*2+bz;
         const std::uint32_t seed=hash_cell(gx,gz,17);
@@ -68,35 +90,67 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         const Box building{{x,h*0.5f,z},{w,h*0.5f,d},facade,true};
         chunk.collision_boxes.push_back(building);
         add(building,true);
-        add({{x,h+0.16f,z},{w+0.2f,0.16f,d+0.2f},{0.36f,0.39f,0.39f,1},false},true);
-        // Windows are high LOD only; distant buildings retain clean silhouettes.
-        const Color glass{0.18f,0.39f,0.50f,1};
+        add({{x,h+0.16f,z},{w+0.2f,0.16f,d+0.2f},{0.34f,0.37f,0.37f,1},false},true);
+
+        // Corner pilasters, roof parapet and subtle floor bands add depth without textures.
+        const Color trim{0.82f,0.79f,0.70f,1};
+        for(float sx:{-1.0f,1.0f})for(float sz:{-1.0f,1.0f})
+            add({{x+sx*(w-0.18f),h*0.5f,z+sz*(d-0.18f)},{0.12f,h*0.5f,0.12f},trim,false},false);
+        add({{x,h+0.42f,z-d+0.10f},{w,0.10f,0.12f},trim,false},false);
+        add({{x,h+0.42f,z+d-0.10f},{w,0.10f,0.12f},trim,false},false);
+        add({{x-w+0.10f,h+0.42f,z},{0.12f,0.10f,d},trim,false},false);
+        add({{x+w-0.10f,h+0.42f,z},{0.12f,0.10f,d},trim,false},false);
+        for(float band=5.4f;band<h-1.0f;band+=8.1f){
+            const Color band_color{facade.r*0.88f,facade.g*0.88f,facade.b*0.88f,1};
+            add({{x,band,z-d-0.035f},{w,0.08f,0.06f},band_color,false},false);
+            add({{x,band,z+d+0.035f},{w,0.08f,0.06f},band_color,false},false);
+            add({{x-w-0.035f,band,z},{0.06f,0.08f,d},band_color,false},false);
+            add({{x+w+0.035f,band,z},{0.06f,0.08f,d},band_color,false},false);
+        }
+        // Two compact rooftop ventilation units.
+        const Color rooftop{0.38f,0.42f,0.43f,1};
+        add({{x-w*0.48f,h+0.65f,z},{0.72f,0.23f,0.62f},rooftop,false},false);
+        add({{x+w*0.43f,h+0.59f,z+d*0.25f},{0.48f,0.17f,0.48f},rooftop,false},false);
+
+        // Recessed-looking glass panes. A few warm panes break up the uniform facade.
+        const Color glass{0.12f,0.30f,0.39f,1};
+        const Color warm_glass{0.60f,0.48f,0.28f,1};
         const int floors=std::max(1,static_cast<int>(h/3.2f));
         for(int floor=0;floor<floors;++floor){
             const float y=2.1f+static_cast<float>(floor)*2.7f;
             if(y>h-0.8f)continue;
             for(int col=0;col<3;++col){
                 const float wx=x+(static_cast<float>(col)-1.0f)*w*0.48f;
-                add({{wx,y,z-d-0.045f},{0.62f,0.72f,0.05f},glass,false},false);
-                add({{wx,y,z+d+0.045f},{0.62f,0.72f,0.05f},glass,false},false);
+                const bool warm=(hash_cell(gx+col,gz+floor,91)&7U)==0U;
+                const Color pane=warm?warm_glass:glass;
+                add({{wx,y,z-d-0.045f},{0.62f,0.72f,0.05f},pane,false},false);
+                add({{wx,y,z+d+0.045f},{0.62f,0.72f,0.05f},pane,false},false);
                 add({{x-w-0.045f,y,z+(static_cast<float>(col)-1.0f)*d*0.48f},
-                    {0.05f,0.72f,0.62f},glass,false},false);
+                    {0.05f,0.72f,0.62f},pane,false},false);
                 add({{x+w+0.045f,y,z+(static_cast<float>(col)-1.0f)*d*0.48f},
-                    {0.05f,0.72f,0.62f},glass,false},false);
+                    {0.05f,0.72f,0.62f},pane,false},false);
             }
         }
-        add({{x,1.0f,z-d-0.07f},{0.7f,1.0f,0.07f},{0.22f,0.27f,0.28f,1},false},false);
-        // A few low-cost street props per lot.
+        add({{x,1.0f,z-d-0.07f},{0.7f,1.0f,0.07f},{0.20f,0.23f,0.24f,1},false},false);
+
+        // Street lamps use three simple meshes each; the warm head is easy to spot at night-like distances.
         for(int side=-1;side<=1;side+=2){
             const float tx=x+static_cast<float>(side)*12.0f;
-            add({{tx,1.1f,z+11.0f},{0.22f,1.1f,0.22f},{0.32f,0.23f,0.15f,1},false},false);
-            add({{tx,2.35f,z+11.0f},{1.0f,1.0f,1.0f},{0.20f,0.42f,0.20f,1},false},false);
+            const float tz=z+11.0f;
+            add({{tx,2.05f,tz},{0.075f,2.05f,0.075f},{0.26f,0.28f,0.29f,1},false},false);
+            add({{tx,4.02f,tz-0.66f},{0.075f,0.075f,0.68f},{0.26f,0.28f,0.29f,1},false},false);
+            add({{tx,3.92f,tz-1.25f},{0.27f,0.13f,0.31f},{0.91f,0.79f,0.50f,1},false},false);
         }
     }
     return chunk;
 }
+
 void CityWorld::reset(){
     player_position_={};player_velocity_={};npc_elapsed_=0.0f;
+    mission_target_={96.0f,0.0f,-6.0f};
+    mission_distance_=std::sqrt(mission_target_.x*mission_target_.x+
+        mission_target_.z*mission_target_.z);
+    mission_state_=MissionState::InProgress;
     active_chunks_.clear();active_building_count_=0;streaming_stats_={};
     streaming_stats_.world_chunks_per_axis=kChunksPerAxis;
     streaming_stats_.active_radius=kChunkRadius;
@@ -156,28 +210,54 @@ void CityWorld::update(float delta,const InputState&input){
     next.z=std::max(-kWorldHalfSize+kPlayerRadius,std::min(kWorldHalfSize-kPlayerRadius,next.z+player_velocity_.z*dt));
     if(!collides_with_building(next))player_position_.z=next.z;else player_velocity_.z=0;
     sync_chunks();
+    const float mdx=player_position_.x-mission_target_.x;
+    const float mdz=player_position_.z-mission_target_.z;
+    mission_distance_=std::sqrt(mdx*mdx+mdz*mdz);
+    if(mission_state_==MissionState::InProgress&&mission_distance_<=kMissionCompleteRadius)
+        mission_state_=MissionState::Completed;
 }
 void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
-    out.push_back({{player_position_.x,1.02f,player_position_.z},{0.34f,0.56f,0.24f},{0.15f,0.42f,0.67f,1},false});
-    out.push_back({{player_position_.x,1.78f,player_position_.z},{0.22f,0.22f,0.22f},{0.78f,0.57f,0.42f,1},false});
+    append_humanoid(out,player_position_,{0.12f,0.35f,0.62f,1},{0.12f,0.15f,0.19f,1});
     for(int i=0;i<5;++i){
         const float phase=npc_elapsed_*0.18f+static_cast<float>(i)*1.25663706f;
         const float radius=23.0f+static_cast<float>(i%2)*3.0f;
         const float x=player_position_.x+std::cos(phase)*radius;
         const float z=player_position_.z+std::sin(phase)*radius;
-        const Color shirt=(i%2==0)?Color{0.70f,0.35f,0.22f,1}:Color{0.15f,0.42f,0.67f,1};
-        out.push_back({{x,0.92f,z},{0.24f,0.46f,0.24f},shirt,false});
-        out.push_back({{x,1.55f,z},{0.18f,0.18f,0.18f},{0.78f,0.57f,0.42f,1},false});
+        const Color shirt=(i%2==0)?Color{0.68f,0.30f,0.18f,1}:Color{0.12f,0.35f,0.55f,1};
+        const Color pants=(i%2==0)?Color{0.18f,0.20f,0.22f,1}:Color{0.30f,0.28f,0.23f,1};
+        append_humanoid(out,{x,0,z},shirt,pants);
     }
+
+    // Parked blue compact delivery car: body, cabin, front/rear glass and four tyres.
+    const float cx=mission_target_.x,cz=mission_target_.z;
+    const Color car_blue{0.06f,0.25f,0.54f,1};
+    const Color glass{0.15f,0.42f,0.54f,1};
+    const Color rubber{0.045f,0.052f,0.058f,1};
+    out.push_back({{cx,0.72f,cz},{2.25f,0.52f,1.02f},car_blue,false});
+    out.push_back({{cx-0.10f,1.34f,cz},{1.22f,0.34f,0.88f},car_blue,false});
+    out.push_back({{cx+1.13f,1.36f,cz},{0.07f,0.28f,0.72f},glass,false});
+    out.push_back({{cx-1.30f,1.36f,cz},{0.07f,0.28f,0.72f},glass,false});
+    for(float sx:{-1.35f,1.35f})for(float sz:{-0.98f,0.98f})
+        out.push_back({{cx+sx,0.38f,cz+sz},{0.40f,0.34f,0.16f},rubber,false});
+
+    // The cyan beacon marks the first mission pickup; it turns green when reached.
+    const Color beacon=mission_state_==MissionState::Completed?
+        Color{0.18f,0.78f,0.34f,1}:Color{0.05f,0.82f,0.96f,1};
+    const float marker_y=mission_state_==MissionState::Completed?0.18f:0.18f;
+    out.push_back({{cx,marker_y,cz},{2.8f,0.12f,2.8f},beacon,false});
+    out.push_back({{cx,3.25f,cz},{0.16f,3.0f,0.16f},beacon,false});
+    out.push_back({{cx,6.35f,cz},{1.25f,0.13f,0.13f},beacon,false});
+    out.push_back({{cx,6.35f,cz},{0.13f,0.13f,1.25f},beacon,false});
+    out.push_back({{cx,7.05f,cz},{0.42f,0.42f,0.42f},beacon,false});
 }
 void CityWorld::gather_dynamic_draw_boxes(std::vector<Box>&out)const{
     out.clear();
-    if(out.capacity()<12)out.reserve(12);
+    if(out.capacity()<kDynamicBoxCount)out.reserve(kDynamicBoxCount);
     append_dynamic_draw_boxes(out);
 }
 void CityWorld::gather_draw_boxes(std::vector<Box>&out)const{
     out.clear();
-    const std::size_t required=streaming_stats_.resident_boxes+12;
+    const std::size_t required=streaming_stats_.resident_boxes+kDynamicBoxCount;
     if(out.capacity()<required)out.reserve(required);
     for(const WorldChunk&c:active_chunks_)
         out.insert(out.end(),c.high_detail_boxes.begin(),c.high_detail_boxes.end());
