@@ -94,6 +94,11 @@ bool GlesRenderer::initialize(){
         "vec3 sky=vec3(0.55,0.72,0.82);"
         "outColor=vec4(mix(grade,sky,fog),vColor.a);}\n";
     glClearColor(0.55f,0.72f,0.82f,1.0f);
+    gpu_chunks_.reserve(25);
+    dynamic_boxes_.reserve(52);
+    dynamic_vertices_.reserve(52U*36U*7U);
+    hud_vertices_.reserve(36000U);
+    control_vertices_.reserve(32U*3U*7U*5U);
     GLuint v=compile(GL_VERTEX_SHADER,vs);
     if(!v){__android_log_print(ANDROID_LOG_ERROR,"GlobalEngine","Vertex shader compilation failed");return false;}
     GLuint f=compile(GL_FRAGMENT_SHADER,fs);
