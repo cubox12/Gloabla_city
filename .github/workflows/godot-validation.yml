@@ -57,7 +57,7 @@ jobs:
         run: ctest --test-dir build-engine --output-on-failure --verbose
 
   android-debug:
-    name: GLOBAL ENGINE Android arm64 APK compile
+    name: GLOBAL CITY-BETA 0.1 Android arm64 APK compile
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,7 +80,7 @@ jobs:
       - name: Upload native debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: global-engine-0.1-arm64-debug-apk
+          name: global-city-beta-0.1-arm64-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
