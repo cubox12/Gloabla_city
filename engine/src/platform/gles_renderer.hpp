@@ -4,7 +4,7 @@
 #include <vector>
 
 namespace global_engine::platform {
-struct CameraState { float yaw{0.72f}; float pitch{0.58f}; float distance{78.0f}; };
+struct CameraState { float yaw{-1.45f}; float pitch{0.46f}; float distance{14.0f}; };
 class GlesRenderer {
 public:
     bool initialize();
