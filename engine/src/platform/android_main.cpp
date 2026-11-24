@@ -324,7 +324,10 @@ extern "C" void android_main(android_app* app) {
             const auto now=std::chrono::steady_clock::now();
             const float dt=std::max(0.0f,std::min(0.05f,std::chrono::duration<float>(now-s.last).count()));s.last=now;
             const MissionStage previous_stage=s.world.mission_stage();
-            s.world.update(dt,s.input);
+            const WorldMovement movement=camera_relative_movement(
+                s.input.move_x,s.input.move_z,s.camera.yaw);
+            const InputState world_input{movement.move_x,movement.move_z};
+            s.world.update(dt,world_input);
             const MissionStage current_stage=s.world.mission_stage();
             if(previous_stage!=current_stage){
                 if(current_stage==MissionStage::DeliverPackage)s.audio.play(0);
