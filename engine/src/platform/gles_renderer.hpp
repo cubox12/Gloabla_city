@@ -2,6 +2,7 @@
 #include "global_engine/world.hpp"
 #include <GLES3/gl3.h>
 #include <vector>
+
 namespace global_engine::platform {
 struct CameraState { float yaw{0.72f}; float pitch{0.58f}; float distance{78.0f}; };
 class GlesRenderer {
@@ -16,11 +17,16 @@ private:
         GLsizei high_count{0},low_count{0};
     };
     void upload_chunk(const WorldChunk&source,GpuChunk&target);
-    GLuint program_{0},dynamic_vertex_buffer_{0};
-    GLint mvp_location_{-1};
+    void draw_hud(const CityWorld&world);
+    GLuint program_{0},dynamic_vertex_buffer_{0},hud_vertex_buffer_{0};
+    GLint mvp_location_{-1},view_location_{-1};
     int width_{1},height_{1};
+    int hud_cached_width_{0},hud_cached_height_{0},hud_cached_distance_{-1};
+    bool hud_cached_complete_{false};
+    GLsizei hud_vertex_count_{0};
     std::vector<GpuChunk> gpu_chunks_;
     std::vector<Box> dynamic_boxes_;
     std::vector<float> dynamic_vertices_;
+    std::vector<float> hud_vertices_;
 };
 } // namespace global_engine::platform
