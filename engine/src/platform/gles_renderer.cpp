@@ -101,7 +101,7 @@ bool GlesRenderer::initialize(){
     dynamic_boxes_.reserve(52);
     dynamic_vertices_.reserve(52U*36U*7U);
     hud_vertices_.reserve(36000U);
-    control_vertices_.reserve(32U*3U*7U*5U);
+    control_vertices_.reserve(32U*3U*7U*12U);
     GLuint v=compile(GL_VERTEX_SHADER,vs);
     if(!v){__android_log_print(ANDROID_LOG_ERROR,"GlobalEngine","Vertex shader compilation failed");return false;}
     GLuint f=compile(GL_FRAGMENT_SHADER,fs);
@@ -216,7 +216,7 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
             draw_text("ENTREGA COMPLETADA",27,51,white);
             draw_text("PRIMER REPARTO LISTO",27,78,white);
         }
-        draw_text("IZQ JOYSTICK  DER CAMARA",27,105,muted);
+        draw_text("JOYSTICK IZQ  CAMARA DER",27,105,muted);
         hud_cached_width_=width_;hud_cached_height_=height_;
         hud_cached_distance_=distance;hud_cached_complete_=complete;hud_cached_stage_=stage;
         hud_vertex_count_=static_cast<GLsizei>(hud_vertices_.size()/7U);
