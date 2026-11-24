@@ -83,18 +83,22 @@ bool GlesRenderer::initialize(){
     static constexpr char vs[]=
         "#version 300 es\n"
         "layout(location=0) in vec3 aPosition;layout(location=1) in vec4 aColor;"
-        "uniform mat4 uMVP;uniform mat4 uView;out vec4 vColor;out float vFogDepth;out float vWorldHeight;"
-        "void main(){vec4 p=vec4(aPosition,1.0);gl_Position=uMVP*p;"
-        "vColor=aColor;vFogDepth=length((uView*p).xyz);vWorldHeight=aPosition.y;}\n";
+        "uniform mat4 uMVP;uniform mat4 uView;out vec4 vColor;out float vFogDepth;out float vWorldHeight;out float vViewHeight;"
+        "void main(){vec4 p=vec4(aPosition,1.0);vec4 viewPosition=uView*p;gl_Position=uMVP*p;"
+        "vColor=aColor;vFogDepth=length(viewPosition.xyz);vWorldHeight=aPosition.y;vViewHeight=viewPosition.y;}\n";
     static constexpr char fs[]=
-        "#version 300 es\nprecision mediump float;in vec4 vColor;in float vFogDepth;in float vWorldHeight;"
+        "#version 300 es\nprecision mediump float;in vec4 vColor;in float vFogDepth;in float vWorldHeight;in float vViewHeight;"
         "out vec4 outColor;void main(){float fog=smoothstep(158.0,278.0,vFogDepth);"
         "float sun=0.96+0.07*smoothstep(0.0,48.0,vWorldHeight);"
         "vec3 lit=pow(max(vColor.rgb,vec3(0.0)),vec3(0.91))*sun;"
         "vec3 warm=lit*vec3(1.055,1.025,0.985);"
         "vec3 grade=(mix(lit,warm,0.42)-vec3(0.5))*1.12+vec3(0.5);"
-        "vec3 skyNear=vec3(0.67,0.80,0.89);vec3 skyFar=vec3(0.36,0.57,0.72);"
-        "vec3 sky=mix(skyNear,skyFar,clamp((vFogDepth-145.0)/270.0,0.0,1.0));"
+        "float elevation=clamp(0.52+vViewHeight/max(vFogDepth,1.0)*1.65,0.0,1.0);"
+        "vec3 horizon=vec3(0.78,0.84,0.87);vec3 zenith=vec3(0.27,0.49,0.70);"
+        "vec3 sky=mix(horizon,zenith,smoothstep(0.05,0.94,elevation));"
+        "float haze=mix(0.92,1.04,smoothstep(0.0,0.65,elevation));"
+        "sky*=haze;float luminance=dot(grade,vec3(0.2126,0.7152,0.0722));"
+        "grade=mix(vec3(luminance),grade,1.08);"
         "outColor=vec4(mix(grade,sky,fog),vColor.a);}\n";
     glClearColor(0.55f,0.72f,0.82f,1.0f);
     gpu_chunks_.reserve(25);
