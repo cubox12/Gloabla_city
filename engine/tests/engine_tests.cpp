@@ -72,19 +72,22 @@ int main(){
         }
     }
     assert(streetlamp_poles==world.active_chunks().size()*8U);
-    std::size_t tree_trunks=0;
+    std::size_t tree_trunks=0,tree_crowns=0;
     for(const WorldChunk&chunk:world.active_chunks()){
         for(const Box&box:chunk.high_detail_boxes){
-            const bool tree_trunk=std::abs(box.center.y-1.05f)<1.0e-5f&&
-                std::abs(box.half_extent.x-0.18f)<1.0e-5f&&
-                std::abs(box.half_extent.z-0.18f)<1.0e-5f&&
-                std::abs(box.color.r-0.31f)<1.0e-5f&&
-                std::abs(box.color.g-0.20f)<1.0e-5f;
+            const bool tree_trunk=box.shape==GeometryShape::Cylinder&&
+                std::abs(box.center.y-1.0f)<1.0e-5f&&
+                std::abs(box.color.r-0.28f)<1.0e-5f&&
+                std::abs(box.color.g-0.18f)<1.0e-5f;
+            const bool leaf_a=box.shape==GeometryShape::Ellipsoid&&
+                std::abs(box.color.r-0.13f)<1.0e-5f&&
+                std::abs(box.color.g-0.31f)<1.0e-5f;
+            const bool leaf_b=box.shape==GeometryShape::Ellipsoid&&
+                std::abs(box.color.r-0.19f)<1.0e-5f&&
+                std::abs(box.color.g-0.39f)<1.0e-5f;
             if(tree_trunk)++tree_trunks;
-            if(!tree_trunk&&!(
-                std::abs(box.center.y-2.65f)<1.0e-5f&&
-                std::abs(box.color.r-0.16f)<1.0e-5f&&
-                std::abs(box.color.g-0.36f)<1.0e-5f))continue;
+            if(leaf_a)++tree_crowns;
+            if(!tree_trunk&&!leaf_a&&!leaf_b)continue;
             for(const Box&building:chunk.collision_boxes){
                 const bool overlaps_x=std::abs(box.center.x-building.center.x)<
                     box.half_extent.x+building.half_extent.x;
@@ -94,9 +97,15 @@ int main(){
                     building.center.y-building.half_extent.y;
                 assert(!(overlaps_x&&overlaps_z&&overlaps_y));
             }
+            const float road_x=std::round(box.center.x/32.0f)*32.0f;
+            const float road_z=std::round(box.center.z/32.0f)*32.0f;
+            const bool clear_vertical_road=std::abs(box.center.x-road_x)-box.half_extent.x>4.0f;
+            const bool clear_horizontal_road=std::abs(box.center.z-road_z)-box.half_extent.z>4.0f;
+            assert(clear_vertical_road&&clear_horizontal_road);
         }
     }
     assert(tree_trunks==world.active_chunks().size()*4U);
+    assert(tree_crowns==world.active_chunks().size()*4U);
     assert(!world.player_intersects_building());
     assert(world.mission_state()==global_engine::MissionState::InProgress);
     assert(world.mission_stage()==global_engine::MissionStage::FindVehicle);
@@ -105,7 +114,7 @@ int main(){
 
     std::vector<global_engine::Box> dynamic;
     world.gather_dynamic_draw_boxes(dynamic);
-    assert(dynamic.size()==64);
+    assert(dynamic.size()==130);
     for(int i=0;i<120;++i)world.update(1.0f/60.0f,{1,0});
     assert(world.player_position().x>5.0f);
     assert(!world.player_intersects_building());
@@ -124,7 +133,7 @@ int main(){
     assert(world.mission_target().x==160.0f&&world.mission_target().z==-64.0f);
     std::vector<global_engine::Box> carrying;
     world.gather_dynamic_draw_boxes(carrying);
-    assert(carrying.size()==65);
+    assert(carrying.size()==131);
     for(int i=0;i<5000&&!world.mission_completed();++i){
         const auto&p=world.player_position();
         if(p.z>-64.0f+1.0f)world.update(1.0f/60.0f,{0.0f,-1.0f});
@@ -137,7 +146,7 @@ int main(){
 
     std::vector<global_engine::Box> all;
     world.gather_draw_boxes(all);
-    assert(all.size()==world.static_box_count()+64);
+    assert(all.size()==world.static_box_count()+130);
     std::cout<<"GLOBAL ENGINE CORE: PASS chunks="<<world.streaming_stats().active_chunks
         <<" buildings="<<world.building_count()<<" resident_boxes="<<world.static_box_count()
         <<" mission=delivered dynamic_boxes="<<dynamic.size()<<'\n';

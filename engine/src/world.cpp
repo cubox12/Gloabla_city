@@ -16,7 +16,7 @@ constexpr float kAcceleration=22.0f;
 constexpr int kChunkRadius=2;
 constexpr int kChunksPerAxis=64;
 constexpr float kMissionCompleteRadius=4.25f;
-constexpr std::size_t kDynamicBoxCount=66;
+constexpr std::size_t kDynamicBoxCount=132;
 float clamp_input(float v) noexcept { return std::max(-1.0f,std::min(1.0f,v)); }
 bool overlap(float a0,float a1,float b0,float b1) noexcept { return a0<b1&&a1>b0; }
 std::uint32_t hash_cell(int x,int z,int salt) noexcept {
@@ -29,32 +29,78 @@ float unit_random(std::uint32_t h) noexcept { return static_cast<float>(h&0x00ff
 
 void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants,
                       const Vec3& forward,float phase,float intensity) {
-    const Color skin{0.78f,0.57f,0.43f,1.0f};
+    const Color skin{0.72f,0.52f,0.39f,1.0f};
+    const Color hair{0.075f,0.065f,0.055f,1.0f};
+    const Color shoes{0.055f,0.062f,0.072f,1.0f};
     const float amount=std::max(0.0f,std::min(1.0f,intensity));
     const float forward_length=std::sqrt(forward.x*forward.x+forward.z*forward.z);
     const Vec3 f=forward_length>1.0e-4f?
         Vec3{forward.x/forward_length,0.0f,forward.z/forward_length}:Vec3{0.0f,0.0f,-1.0f};
     const Vec3 right{f.z,0.0f,-f.x};
-    const float swing=std::sin(phase)*0.22f*amount;
+    const float swing=std::sin(phase)*0.19f*amount;
     const float opposite=-swing;
-    const float left_lift=std::max(0.0f,std::sin(phase))*0.11f*amount;
-    const float right_lift=std::max(0.0f,-std::sin(phase))*0.11f*amount;
-    const float bob=0.045f*amount*(0.5f+0.5f*std::sin(phase*2.0f));
-    const Vec3 left_leg=p+right*(-0.13f)+f*swing;
-    const Vec3 right_leg=p+right*0.13f+f*opposite;
-    // The feet lift and shorten slightly, while the pelvis remains stable.
-    out.push_back({{left_leg.x,0.39f+left_lift*0.5f,left_leg.z},
-        {0.13f,0.39f-left_lift*0.5f,0.14f},pants,false});
-    out.push_back({{right_leg.x,0.39f+right_lift*0.5f,right_leg.z},
-        {0.13f,0.39f-right_lift*0.5f,0.14f},pants,false});
-    out.push_back({{p.x,1.08f+bob,p.z},{0.27f,0.46f,0.18f},shirt,false});
-    out.push_back({{p.x,1.75f+bob,p.z},{0.19f,0.19f,0.19f},skin,false});
-    const Vec3 left_arm=p+right*(-0.34f)+f*(-swing*0.82f);
-    const Vec3 right_arm=p+right*0.34f+f*(swing*0.82f);
-    out.push_back({{left_arm.x,1.08f+bob+std::sin(phase+1.5707963f)*0.055f*amount,left_arm.z},
-        {0.11f,0.37f,0.12f},shirt,false});
-    out.push_back({{right_arm.x,1.08f+bob-std::sin(phase+1.5707963f)*0.055f*amount,right_arm.z},
-        {0.11f,0.37f,0.12f},shirt,false});
+    const float left_lift=std::max(0.0f,std::sin(phase))*0.085f*amount;
+    const float right_lift=std::max(0.0f,-std::sin(phase))*0.085f*amount;
+    const float bob=0.025f*amount*(0.5f+0.5f*std::sin(phase*2.0f));
+
+    auto ellipsoid=[&](const Vec3&center,const Vec3&half,const Color&color,
+                       float yaw=0.0f,float pitch=0.0f){
+        Box part{center,half,color,false};
+        part.shape=GeometryShape::Ellipsoid;
+        part.yaw=yaw;
+        part.pitch=pitch;
+        out.push_back(part);
+    };
+    auto segment=[&](const Vec3&a,const Vec3&b,float radius,const Color&color){
+        const Vec3 delta=b-a;
+        const float horizontal=std::sqrt(delta.x*delta.x+delta.z*delta.z);
+        const float length=std::sqrt(horizontal*horizontal+delta.y*delta.y);
+        if(length<1.0e-4f)return;
+        const Vec3 center=(a+b)*0.5f;
+        Box part{center,{radius,length*0.5f+radius*0.35f,radius*0.88f},color,false};
+        part.shape=GeometryShape::Ellipsoid;
+        part.yaw=std::atan2(delta.x,delta.z);
+        part.pitch=std::atan2(horizontal,delta.y);
+        out.push_back(part);
+    };
+
+    // Pelvis, chest, neck, head and hair create a readable human silhouette.
+    ellipsoid({p.x,0.99f+bob,p.z},{0.215f,0.16f,0.145f},pants);
+    ellipsoid({p.x,1.30f+bob,p.z},{0.255f,0.315f,0.165f},shirt);
+    ellipsoid({p.x,1.60f+bob,p.z},{0.085f,0.105f,0.085f},skin);
+    ellipsoid({p.x,1.78f+bob,p.z},{0.145f,0.18f,0.13f},skin);
+    ellipsoid({p.x,1.91f+bob,p.z},{0.148f,0.075f,0.134f},hair);
+
+    // Arms are two tapered-looking articulated segments with hands.
+    const float arm_left=std::sin(phase+3.14159265f)*0.15f*amount;
+    const float arm_right=-arm_left;
+    const Vec3 left_shoulder=p+right*(-0.275f)+Vec3{0,1.46f+bob,0};
+    const Vec3 left_elbow=p+right*(-0.335f)+f*arm_left+Vec3{0,1.12f+bob,0};
+    const Vec3 left_wrist=p+right*(-0.36f)+f*(arm_left*1.45f)+Vec3{0,0.89f+bob,0};
+    const Vec3 right_shoulder=p+right*0.275f+Vec3{0,1.46f+bob,0};
+    const Vec3 right_elbow=p+right*0.335f+f*arm_right+Vec3{0,1.12f+bob,0};
+    const Vec3 right_wrist=p+right*0.36f+f*(arm_right*1.45f)+Vec3{0,0.89f+bob,0};
+    segment(left_shoulder,left_elbow,0.092f,shirt);
+    segment(left_elbow,left_wrist,0.073f,shirt);
+    ellipsoid(left_wrist,{0.072f,0.085f,0.068f},skin);
+    segment(right_shoulder,right_elbow,0.092f,shirt);
+    segment(right_elbow,right_wrist,0.073f,shirt);
+    ellipsoid(right_wrist,{0.072f,0.085f,0.068f},skin);
+
+    // Separate thighs and shins animate around the hip and knee, not as rigid blocks.
+    const Vec3 left_hip=p+right*(-0.12f)+f*(swing*0.18f)+Vec3{0,0.94f+bob,0};
+    const Vec3 left_knee=p+right*(-0.13f)+f*swing+Vec3{0,0.52f+left_lift*0.30f,0};
+    const Vec3 left_ankle=p+right*(-0.13f)+f*(swing*0.72f)+Vec3{0,0.17f+left_lift,0};
+    const Vec3 right_hip=p+right*0.12f+f*(opposite*0.18f)+Vec3{0,0.94f+bob,0};
+    const Vec3 right_knee=p+right*0.13f+f*opposite+Vec3{0,0.52f+right_lift*0.30f,0};
+    const Vec3 right_ankle=p+right*0.13f+f*(opposite*0.72f)+Vec3{0,0.17f+right_lift,0};
+    segment(left_hip,left_knee,0.125f,pants);
+    segment(left_knee,left_ankle,0.088f,pants);
+    segment(right_hip,right_knee,0.125f,pants);
+    segment(right_knee,right_ankle,0.088f,pants);
+    const float foot_yaw=std::atan2(f.x,f.z);
+    ellipsoid(left_ankle+f*0.055f+Vec3{0,-0.065f,0},{0.135f,0.072f,0.205f},shoes,foot_yaw);
+    ellipsoid(right_ankle+f*0.055f+Vec3{0,-0.065f,0},{0.135f,0.072f,0.205f},shoes,foot_yaw);
 }
 } // namespace
 
@@ -67,8 +113,8 @@ CityWorld::CityWorld(){reset();}
 WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
     WorldChunk chunk;chunk.x=cx;chunk.z=cz;
     // Reserve for the worst facade/window pattern plus road markings and street furniture.
-    chunk.high_detail_boxes.reserve(768);
-    chunk.low_detail_boxes.reserve(192);
+    chunk.high_detail_boxes.reserve(1024);
+    chunk.low_detail_boxes.reserve(256);
     chunk.collision_boxes.reserve(4);
     const float ox=static_cast<float>(cx)*kChunkSize,oz=static_cast<float>(cz)*kChunkSize;
     chunk.center_x=ox+kChunkSize*0.5f;chunk.center_z=oz+kChunkSize*0.5f;
@@ -113,103 +159,156 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         }
     }
 
-    const Color facades[]={{0.76f,0.61f,0.43f,1},{0.34f,0.60f,0.64f,1},
-        {0.73f,0.39f,0.29f,1},{0.48f,0.57f,0.70f,1},{0.61f,0.66f,0.44f,1}};
-    // Small low-poly street trees make the avenues feel inhabited at a low GPU cost.
-    const Color bark{0.31f,0.20f,0.13f,1};
-    const Color leaf_a{0.16f,0.36f,0.22f,1};
-    const Color leaf_b{0.22f,0.45f,0.27f,1};
-    for(const auto&tree:std::array<Vec3,4>{{
-        {ox+7.4f,0.0f,oz+24.0f},{ox+24.0f,0.0f,oz+7.4f},
-        {ox+56.6f,0.0f,oz+40.0f},{ox+40.0f,0.0f,oz+56.6f}}}){
-        add({{tree.x,1.05f,tree.z},{0.18f,1.05f,0.18f},bark,false},true);
-        add({{tree.x,2.65f,tree.z},{0.95f,0.92f,0.95f},leaf_a,false},true);
-        add({{tree.x+0.34f,2.45f,tree.z-0.22f},{0.58f,0.62f,0.62f},leaf_b,false},true);
+    const Color facades[]={{0.66f,0.63f,0.57f,1},{0.53f,0.57f,0.57f,1},
+        {0.70f,0.66f,0.59f,1},{0.47f,0.51f,0.53f,1},{0.62f,0.55f,0.47f,1}};
+    const Color bark{0.28f,0.18f,0.12f,1};
+    const Color leaf_a{0.13f,0.31f,0.18f,1};
+    const Color leaf_b{0.19f,0.39f,0.22f,1};
+
+    // Planting strips are aligned with the outer edge of the sidewalk, not the facade.
+    // The full canopy envelope stays outside both the carriageway and every building footprint.
+    const std::array<Vec3,4> tree_positions{{
+        {ox+5.9f,0.0f,oz+24.0f},{ox+24.0f,0.0f,oz+5.9f},
+        {ox+58.1f,0.0f,oz+40.0f},{ox+40.0f,0.0f,oz+58.1f}}};
+    for(const Vec3&tree:tree_positions){
+        Box trunk{{tree.x,1.0f,tree.z},{0.13f,1.0f,0.13f},bark,false};
+        trunk.shape=GeometryShape::Cylinder;
+        add(trunk,true);
+        Box crown{{tree.x,2.68f,tree.z},{0.86f,0.88f,0.86f},leaf_a,false};
+        crown.shape=GeometryShape::Ellipsoid;
+        add(crown,true);
+        for(float side:{-1.0f,1.0f}){
+            Box foliage{{tree.x+side*0.34f,2.53f,tree.z+side*0.10f},
+                {0.55f,0.58f,0.56f},leaf_b,false};
+            foliage.shape=GeometryShape::Ellipsoid;
+            add(foliage,true);
+        }
     }
+
     for(int bx=0;bx<2;++bx)for(int bz=0;bz<2;++bz){
         const int gx=cx*2+bx,gz=cz*2+bz;
         const std::uint32_t seed=hash_cell(gx,gz,17);
         const float x=ox+16.0f+static_cast<float>(bx)*32.0f;
         const float z=oz+16.0f+static_cast<float>(bz)*32.0f;
-        const float w=7.0f+unit_random(seed)*2.0f;
-        const float d=7.0f+unit_random(seed^0x1234U)*2.0f;
-        const float h=8.0f+unit_random(seed^0x9abcU)*30.0f;
+        const float w=6.4f+unit_random(seed)*1.1f;
+        const float d=6.3f+unit_random(seed^0x1234U)*1.2f;
+        const float h=10.0f+unit_random(seed^0x9abcU)*22.0f;
+        const unsigned style=seed&3U;
         const Color facade=facades[seed%5U];
+        const Color base_color{facade.r*0.88f,facade.g*0.88f,facade.b*0.88f,1};
+        const Color trim{0.82f,0.79f,0.72f,1};
+        const Color frame{0.20f,0.23f,0.24f,1};
+        const Color glass{0.11f,0.25f,0.31f,1};
+        const Color warm_glass{0.46f,0.36f,0.22f,1};
+
+        // Collision is a single footprint; visible geometry is split into a podium
+        // and a slightly inset tower so every building has a more natural skyline.
         const Box building{{x,h*0.5f,z},{w,h*0.5f,d},facade,true};
         chunk.collision_boxes.push_back(building);
-        add(building,true);
-        add({{x,h+0.16f,z},{w+0.2f,0.16f,d+0.2f},{0.34f,0.37f,0.37f,1},false},true);
+        const float podium_height=3.35f;
+        Box podium{{x,podium_height*0.5f,z},{w,podium_height*0.5f,d},base_color,false};
+        podium.shape=GeometryShape::SoftBox;
+        add(podium,true);
 
-        // Corner pilasters, roof parapet and subtle floor bands add depth without textures.
-        const Color trim{0.82f,0.79f,0.70f,1};
+        const float upper_height=std::max(2.0f,h-podium_height);
+        const float upper_w=w-((style&1U)?0.72f:0.42f);
+        const float upper_d=d-((style&2U)?0.72f:0.42f);
+        const float upper_x=x+((style&1U)?0.22f:-0.10f);
+        const float upper_z=z+((style&2U)?0.22f:-0.10f);
+        Box tower{{upper_x,podium_height+upper_height*0.5f,upper_z},
+            {upper_w,upper_height*0.5f,upper_d},facade,false};
+        tower.shape=GeometryShape::SoftBox;
+        add(tower,true);
+        Box roof_cap{{upper_x,h+0.14f,upper_z},{upper_w+0.16f,0.14f,upper_d+0.16f},
+            {0.34f,0.37f,0.37f,1},false};
+        roof_cap.shape=GeometryShape::SoftBox;
+        add(roof_cap,true);
+
+        // Clean corner lines and a restrained floor belt break up the large facade planes.
         for(float sx:{-1.0f,1.0f})for(float sz:{-1.0f,1.0f})
-            add({{x+sx*(w-0.18f),h*0.5f,z+sz*(d-0.18f)},{0.12f,h*0.5f,0.12f},trim,false},false);
-        add({{x,h+0.42f,z-d+0.10f},{w,0.10f,0.12f},trim,false},false);
-        add({{x,h+0.42f,z+d-0.10f},{w,0.10f,0.12f},trim,false},false);
-        add({{x-w+0.10f,h+0.42f,z},{0.12f,0.10f,d},trim,false},false);
-        add({{x+w-0.10f,h+0.42f,z},{0.12f,0.10f,d},trim,false},false);
-        for(float band=5.4f;band<h-1.0f;band+=8.1f){
-            const Color band_color{facade.r*0.88f,facade.g*0.88f,facade.b*0.88f,1};
-            add({{x,band,z-d-0.035f},{w,0.08f,0.06f},band_color,false},false);
-            add({{x,band,z+d+0.035f},{w,0.08f,0.06f},band_color,false},false);
-            add({{x-w-0.035f,band,z},{0.06f,0.08f,d},band_color,false},false);
-            add({{x+w+0.035f,band,z},{0.06f,0.08f,d},band_color,false},false);
-        }
-        // Two compact rooftop ventilation units.
-        const Color rooftop{0.38f,0.42f,0.43f,1};
-        add({{x-w*0.48f,h+0.65f,z},{0.72f,0.23f,0.62f},rooftop,false},false);
-        add({{x+w*0.43f,h+0.59f,z+d*0.25f},{0.48f,0.17f,0.48f},rooftop,false},false);
-        if((seed&1U)==0U){
-            const Color water_tank{0.48f,0.55f,0.55f,1};
-            add({{x+w*0.34f,h+1.02f,z-d*0.30f},{0.66f,0.72f,0.66f},water_tank,false},false);
-            add({{x+w*0.34f,h+1.82f,z-d*0.30f},{0.70f,0.08f,0.70f},
-                {0.31f,0.39f,0.40f,1},false},false);
+            add({{upper_x+sx*(upper_w-0.12f),podium_height+upper_height*0.5f,
+                    upper_z+sz*(upper_d-0.12f)},
+                {0.075f,upper_height*0.5f,0.075f},trim,false},false);
+        for(float band=6.4f;band<h-1.0f;band+=7.2f){
+            add({{upper_x,band,upper_z-upper_d-0.035f},{upper_w,0.055f,0.045f},
+                base_color,false},false);
+            add({{upper_x,band,upper_z+upper_d+0.035f},{upper_w,0.055f,0.045f},
+                base_color,false},false);
         }
 
-        // Small storefront awning and sign give each block a recognizable street-level identity.
-        const Color sign_colors[]={{0.72f,0.22f,0.15f,1},{0.10f,0.36f,0.47f,1},
-            {0.72f,0.49f,0.16f,1},{0.28f,0.43f,0.29f,1}};
+        // Storefront glazing, recessed door and quiet signage make the ground floor readable.
+        add({{x,1.55f,z-d-0.055f},{0.62f,0.86f,0.055f},glass,false},false);
+        add({{x-1.38f,1.62f,z-d-0.055f},{0.62f,0.76f,0.055f},glass,false},false);
+        add({{x+1.38f,1.62f,z-d-0.055f},{0.62f,0.76f,0.055f},glass,false},false);
+        const Color sign_colors[]={{0.48f,0.19f,0.14f,1},{0.12f,0.29f,0.34f,1},
+            {0.56f,0.39f,0.20f,1},{0.22f,0.34f,0.25f,1}};
         const Color shop_color=sign_colors[(seed>>3U)%4U];
-        add({{x,3.55f,z-d-0.10f},{1.18f,0.24f,0.09f},shop_color,false},false);
-        add({{x,2.88f,z-d-0.48f},{1.52f,0.11f,0.52f},shop_color,false},false);
+        add({{x,3.30f,z-d-0.10f},{1.14f,0.19f,0.09f},shop_color,false},false);
+        add({{x,2.82f,z-d-0.42f},{1.48f,0.09f,0.43f},shop_color,false},false);
         for(int stripe=0;stripe<4;++stripe){
             const float stripe_x=x+(static_cast<float>(stripe)-1.5f)*0.72f;
-            add({{stripe_x,2.89f,z-d-0.50f},{0.19f,0.115f,0.53f},
-                {0.88f,0.82f,0.68f,1},false},false);
+            add({{stripe_x,2.83f,z-d-0.44f},{0.18f,0.095f,0.44f},
+                {0.82f,0.78f,0.68f,1},false},false);
         }
 
-        // Recessed-looking glass panes. A few warm panes break up the uniform facade.
-        const Color glass{0.12f,0.30f,0.39f,1};
-        const Color warm_glass{0.60f,0.48f,0.28f,1};
-        const int floors=std::max(1,static_cast<int>(h/3.2f));
+        // Recessed windows use one compact pane per opening to keep the mobile mesh budget small.
+        const int floors=std::max(2,std::min(8,static_cast<int>((h-podium_height)/3.05f)));
         for(int floor=0;floor<floors;++floor){
-            const float y=2.1f+static_cast<float>(floor)*2.7f;
+            const float y=4.9f+static_cast<float>(floor)*3.05f;
             if(y>h-0.8f)continue;
-            for(int col=0;col<3;++col){
-                const float wx=x+(static_cast<float>(col)-1.0f)*w*0.48f;
+            for(int col=0;col<2;++col){
+                const float wx=upper_x+(static_cast<float>(col)-0.5f)*upper_w*0.92f;
                 const bool warm=(hash_cell(gx+col,gz+floor,91)&7U)==0U;
                 const Color pane=warm?warm_glass:glass;
-                add({{wx,y,z-d-0.045f},{0.62f,0.72f,0.05f},pane,false},false);
-                add({{wx,y,z+d+0.045f},{0.62f,0.72f,0.05f},pane,false},false);
-                add({{x-w-0.045f,y,z+(static_cast<float>(col)-1.0f)*d*0.48f},
-                    {0.05f,0.72f,0.62f},pane,false},false);
-                add({{x+w+0.045f,y,z+(static_cast<float>(col)-1.0f)*d*0.48f},
-                    {0.05f,0.72f,0.62f},pane,false},false);
+                add({{wx,y,upper_z-upper_d-0.045f},{0.68f,0.77f,0.045f},pane,false},false);
+                add({{wx,y,upper_z+upper_d+0.045f},{0.68f,0.77f,0.045f},pane,false},false);
+                const float wz=upper_z+(static_cast<float>(col)-0.5f)*upper_d*0.92f;
+                add({{upper_x-upper_w-0.045f,y,wz},{0.045f,0.77f,0.68f},pane,false},false);
+                add({{upper_x+upper_w+0.045f,y,wz},{0.045f,0.77f,0.68f},pane,false},false);
             }
         }
-        add({{x,1.0f,z-d-0.07f},{0.7f,1.0f,0.07f},{0.20f,0.23f,0.24f,1},false},false);
 
-        // Street lamps sit on the sidewalk strips (5.2 units from the road
-        // centerlines), never in the 8-unit carriageway. Their arms point toward
-        // the adjacent road instead of cutting across the pedestrian path.
+        // Selected floors get projecting balconies with a slab, glass rail and metal cap.
+        for(int floor=1;floor<floors;floor+=2){
+            const float y=4.25f+static_cast<float>(floor)*3.05f;
+            if(y>h-1.3f)continue;
+            const float balcony_x=upper_x+((floor&2)?0.62f:-0.62f);
+            add({{balcony_x,y,upper_z-upper_d-0.25f},{0.88f,0.075f,0.40f},
+                {0.58f,0.58f,0.55f,1},false},false);
+            add({{balcony_x,y+0.36f,upper_z-upper_d-0.59f},{0.82f,0.24f,0.045f},
+                {0.30f,0.43f,0.47f,1},false},false);
+            add({{balcony_x,y+0.62f,upper_z-upper_d-0.59f},{0.86f,0.035f,0.055f},
+                trim,false},false);
+            for(float side:{-1.0f,1.0f})
+                add({{balcony_x+side*0.84f,y+0.34f,upper_z-upper_d-0.39f},
+                    {0.035f,0.23f,0.22f},trim,false},false);
+        }
+
+        // Roof equipment is smaller and less decorative: HVAC and an occasional water tank.
+        const Color rooftop{0.34f,0.38f,0.39f,1};
+        add({{upper_x-upper_w*0.45f,h+0.46f,upper_z},{0.58f,0.18f,0.48f},rooftop,false},false);
+        if((seed&1U)==0U){
+            Box tank{{upper_x+upper_w*0.34f,h+0.76f,upper_z-upper_d*0.28f},
+                {0.47f,0.59f,0.47f},{0.43f,0.49f,0.49f,1},false};
+            tank.shape=GeometryShape::Ellipsoid;
+            add(tank,false);
+        }
+
+        // Street lights are cylindrical and attached to the pedestrian verge.
         for(int side=-1;side<=1;side+=2){
             const float tx=x+static_cast<float>(side)*10.8f;
             const float tz=z;
-            add({{tx,2.05f,tz},{0.075f,2.05f,0.075f},{0.26f,0.28f,0.29f,1},false},false);
-            add({{tx+static_cast<float>(side)*0.66f,4.02f,tz},
-                {0.68f,0.075f,0.075f},{0.26f,0.28f,0.29f,1},false},false);
+            Box pole{{tx,2.05f,tz},{0.075f,2.05f,0.075f},{0.25f,0.27f,0.28f,1},false};
+            pole.shape=GeometryShape::Cylinder;
+            add(pole,false);
+            Box arm{{tx+static_cast<float>(side)*0.66f,4.02f,tz},
+                {0.075f,0.68f,0.075f},{0.25f,0.27f,0.28f,1},false};
+            arm.shape=GeometryShape::Cylinder;
+            arm.yaw=1.5707963f;
+            arm.pitch=1.5707963f;
+            add(arm,false);
             add({{tx+static_cast<float>(side)*1.25f,3.92f,tz},
-                {0.13f,0.27f,0.31f},{0.91f,0.79f,0.50f,1},false},false);
+                {0.13f,0.27f,0.31f},{0.91f,0.82f,0.62f,1},false},false);
         }
     }
     return chunk;
@@ -335,12 +434,20 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     const Color car_blue{0.06f,0.25f,0.54f,1};
     const Color glass{0.15f,0.42f,0.54f,1};
     const Color rubber{0.045f,0.052f,0.058f,1};
-    out.push_back({{cx,0.72f,cz},{2.25f,0.52f,1.02f},car_blue,false});
-    out.push_back({{cx-0.10f,1.34f,cz},{1.22f,0.34f,0.88f},car_blue,false});
+    Box car_body{{cx,0.72f,cz},{2.25f,0.52f,1.02f},car_blue,false};
+    car_body.shape=GeometryShape::SoftBox;
+    out.push_back(car_body);
+    Box car_cabin{{cx-0.10f,1.34f,cz},{1.22f,0.34f,0.88f},car_blue,false};
+    car_cabin.shape=GeometryShape::SoftBox;
+    out.push_back(car_cabin);
     out.push_back({{cx+1.13f,1.36f,cz},{0.07f,0.28f,0.72f},glass,false});
     out.push_back({{cx-1.30f,1.36f,cz},{0.07f,0.28f,0.72f},glass,false});
-    for(float sx:{-1.35f,1.35f})for(float sz:{-0.98f,0.98f})
-        out.push_back({{cx+sx,0.38f,cz+sz},{0.40f,0.34f,0.16f},rubber,false});
+    for(float sx:{-1.35f,1.35f})for(float sz:{-0.98f,0.98f}){
+        Box tyre{{cx+sx,0.38f,cz+sz},{0.37f,0.16f,0.37f},rubber,false};
+        tyre.shape=GeometryShape::Cylinder;
+        tyre.pitch=1.5707963f;
+        out.push_back(tyre);
+    }
     const Color headlights{0.95f,0.84f,0.58f,1};
     out.push_back({{cx+2.23f,0.80f,cz-0.66f},{0.07f,0.14f,0.20f},headlights,false});
     out.push_back({{cx+2.23f,0.80f,cz+0.66f},{0.07f,0.14f,0.20f},headlights,false});
@@ -360,8 +467,12 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     out.push_back({{cx-2.28f,0.45f,cz},{0.15f,0.12f,0.94f},bumper,false});
     out.push_back({{cx-2.27f,0.82f,cz-0.70f},{0.07f,0.15f,0.18f},tail_lamps,false});
     out.push_back({{cx-2.27f,0.82f,cz+0.70f},{0.07f,0.15f,0.18f},tail_lamps,false});
-    for(float sx:{-1.35f,1.35f})for(float sz:{-1.0f,1.0f})
-        out.push_back({{cx+sx,0.38f,cz+sz*1.145f},{0.19f,0.18f,0.045f},wheel_hubs,false});
+    for(float sx:{-1.35f,1.35f})for(float sz:{-1.0f,1.0f}){
+        Box hub{{cx+sx,0.38f,cz+sz*1.145f},{0.17f,0.045f,0.17f},wheel_hubs,false};
+        hub.shape=GeometryShape::Cylinder;
+        hub.pitch=1.5707963f;
+        out.push_back(hub);
+    }
 
     // The cyan beacon marks the first mission pickup; it turns green when reached.
     const Color beacon=mission_state_==MissionState::Completed?

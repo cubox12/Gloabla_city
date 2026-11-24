@@ -11,7 +11,16 @@ struct Vec3 {
     Vec3 operator*(float scalar) const noexcept;
 };
 struct Color { float r{1.0f}, g{1.0f}, b{1.0f}, a{1.0f}; };
-struct Box { Vec3 center; Vec3 half_extent; Color color; bool solid{false}; };
+enum class GeometryShape : std::uint8_t { Box, SoftBox, Ellipsoid, Cylinder };
+struct Box {
+    Vec3 center;
+    Vec3 half_extent;
+    Color color;
+    bool solid{false};
+    GeometryShape shape{GeometryShape::Box};
+    float yaw{0.0f};
+    float pitch{0.0f};
+};
 struct InputState { float move_x{0.0f}, move_z{0.0f}; };
 
 enum class MissionState : std::uint8_t { InProgress, Completed };

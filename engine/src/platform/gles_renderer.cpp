@@ -44,7 +44,129 @@ GLuint compile(GLenum type,const char*source){
     __android_log_print(ANDROID_LOG_ERROR,"GlobalEngine","Shader error: %s",log.c_str());
     glDeleteShader(sh);return 0;
 }
+Vec3 rotate_shape_vector(const Vec3&v,float yaw,float pitch){
+    const float cp=std::cos(pitch),sp=std::sin(pitch);
+    const float cy=std::cos(yaw),sy=std::sin(yaw);
+    const float py=cp*v.y-sp*v.z;
+    const float pz=sp*v.y+cp*v.z;
+    return {cy*v.x+sy*pz,py,-sy*v.x+cy*pz};
+}
+Vec3 normalized_or(const Vec3&v,const Vec3&fallback){
+    const float length=std::sqrt(v.x*v.x+v.y*v.y+v.z*v.z);
+    return length>1.0e-6f?Vec3{v.x/length,v.y/length,v.z/length}:fallback;
+}
+void append_lit_vertex(std::vector<float>&out,const Vec3&position,const Vec3&normal,const Color&color){
+    const Vec3 light=normalized_or({-0.42f,0.84f,0.34f},{0,1,0});
+    const float diffuse=std::max(0.0f,dot(normal,light));
+    const float shade=0.58f+0.42f*diffuse;
+    out.insert(out.end(),{position.x,position.y,position.z,
+        color.r*shade,color.g*shade,color.b*shade,color.a});
+}
+void append_ellipsoid(std::vector<float>&out,const Box&b){
+    constexpr int rings=5;
+    constexpr int segments=8;
+    const float pi=3.14159265358979323846f;
+    auto sample=[&](float theta,float phi){
+        const Vec3 n{std::sin(theta)*std::cos(phi),std::cos(theta),std::sin(theta)*std::sin(phi)};
+        const Vec3 local{n.x*b.half_extent.x,n.y*b.half_extent.y,n.z*b.half_extent.z};
+        const Vec3 position=b.center+rotate_shape_vector(local,b.yaw,b.pitch);
+        const Vec3 normal=normalized_or(rotate_shape_vector({
+            n.x/std::max(b.half_extent.x,1.0e-5f),
+            n.y/std::max(b.half_extent.y,1.0e-5f),
+            n.z/std::max(b.half_extent.z,1.0e-5f)},b.yaw,b.pitch),{0,1,0});
+        return std::pair<Vec3,Vec3>{position,normal};
+    };
+    for(int ring=0;ring<rings;++ring){
+        const float t0=pi*static_cast<float>(ring)/static_cast<float>(rings);
+        const float t1=pi*static_cast<float>(ring+1)/static_cast<float>(rings);
+        for(int segment=0;segment<segments;++segment){
+            const float p0=2.0f*pi*static_cast<float>(segment)/static_cast<float>(segments);
+            const float p1=2.0f*pi*static_cast<float>(segment+1)/static_cast<float>(segments);
+            const auto a=sample(t0,p0),b0=sample(t1,p0),c=sample(t1,p1),d=sample(t0,p1);
+            append_lit_vertex(out,a.first,a.second,b.color);
+            append_lit_vertex(out,b0.first,b0.second,b.color);
+            append_lit_vertex(out,c.first,c.second,b.color);
+            append_lit_vertex(out,a.first,a.second,b.color);
+            append_lit_vertex(out,c.first,c.second,b.color);
+            append_lit_vertex(out,d.first,d.second,b.color);
+        }
+    }
+}
+void append_cylinder(std::vector<float>&out,const Box&b){
+    constexpr int segments=8;
+    const float pi=3.14159265358979323846f;
+    auto point=[&](float angle,float y){
+        const Vec3 local{std::cos(angle)*b.half_extent.x,y*b.half_extent.y,
+            std::sin(angle)*b.half_extent.z};
+        return b.center+rotate_shape_vector(local,b.yaw,b.pitch);
+    };
+    auto normal=[&](float angle,float ny){
+        return normalized_or(rotate_shape_vector({std::cos(angle),ny,std::sin(angle)},
+            b.yaw,b.pitch),{0,1,0});
+    };
+    const Vec3 top=b.center+rotate_shape_vector({0,b.half_extent.y,0},b.yaw,b.pitch);
+    const Vec3 bottom=b.center+rotate_shape_vector({0,-b.half_extent.y,0},b.yaw,b.pitch);
+    for(int i=0;i<segments;++i){
+        const float a0=2.0f*pi*static_cast<float>(i)/static_cast<float>(segments);
+        const float a1=2.0f*pi*static_cast<float>(i+1)/static_cast<float>(segments);
+        const Vec3 p00=point(a0,-1),p01=point(a1,-1),p10=point(a0,1),p11=point(a1,1);
+        const Vec3 n0=normal((a0+a1)*0.5f,0);
+        append_lit_vertex(out,p00,n0,b.color);append_lit_vertex(out,p01,n0,b.color);
+        append_lit_vertex(out,p11,n0,b.color);append_lit_vertex(out,p00,n0,b.color);
+        append_lit_vertex(out,p11,n0,b.color);append_lit_vertex(out,p10,n0,b.color);
+        const Vec3 nt=normal(0,1),nb=normal(0,-1);
+        const Vec3 ct=top,cb=bottom;
+        append_lit_vertex(out,ct,nt,b.color);append_lit_vertex(out,p10,nt,b.color);
+        append_lit_vertex(out,p11,nt,b.color);
+        append_lit_vertex(out,cb,nb,b.color);append_lit_vertex(out,p01,nb,b.color);
+        append_lit_vertex(out,p00,nb,b.color);
+    }
+}
+void append_soft_box(std::vector<float>&out,const Box&b){
+    const Vec3&h=b.half_extent;
+    const float bevel=std::min({h.x,h.y,h.z})*0.085f;
+    const Vec3 inner{std::max(0.001f,h.x-bevel),std::max(0.001f,h.y-bevel),
+        std::max(0.001f,h.z-bevel)};
+    const std::array<float,5> u{{-1.0f,-inner.x/h.x,0.0f,inner.x/h.x,1.0f}};
+    const std::array<float,5> v{{-1.0f,-inner.y/h.y,0.0f,inner.y/h.y,1.0f}};
+    auto face_point=[&](int face,float a,float c){
+        switch(face){
+            case 0:return Vec3{ h.x,a*h.y,c*h.z};
+            case 1:return Vec3{-h.x,a*h.y,-c*h.z};
+            case 2:return Vec3{a*h.x,h.y,c*h.z};
+            case 3:return Vec3{-a*h.x,-h.y,c*h.z};
+            case 4:return Vec3{a*h.x,c*h.y,h.z};
+            default:return Vec3{-a*h.x,c*h.y,-h.z};
+        }
+    };
+    auto rounded=[&](const Vec3&p,const Vec3&fallback){
+        const Vec3 q{std::max(-inner.x,std::min(inner.x,p.x)),
+            std::max(-inner.y,std::min(inner.y,p.y)),
+            std::max(-inner.z,std::min(inner.z,p.z))};
+        const Vec3 delta=p-q;
+        const Vec3 n=normalized_or(delta,fallback);
+        return std::pair<Vec3,Vec3>{b.center+q+n*bevel,n};
+    };
+    const std::array<Vec3,6> normals{{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}};
+    for(int face=0;face<6;++face){
+        for(int row=0;row<4;++row)for(int col=0;col<4;++col){
+            const auto p00=rounded(face_point(face,u[col],v[row]),normals[face]);
+            const auto p10=rounded(face_point(face,u[col+1],v[row]),normals[face]);
+            const auto p11=rounded(face_point(face,u[col+1],v[row+1]),normals[face]);
+            const auto p01=rounded(face_point(face,u[col],v[row+1]),normals[face]);
+            append_lit_vertex(out,p00.first,p00.second,b.color);
+            append_lit_vertex(out,p10.first,p10.second,b.color);
+            append_lit_vertex(out,p11.first,p11.second,b.color);
+            append_lit_vertex(out,p00.first,p00.second,b.color);
+            append_lit_vertex(out,p11.first,p11.second,b.color);
+            append_lit_vertex(out,p01.first,p01.second,b.color);
+        }
+    }
+}
 void append_box(std::vector<float>&out,const Box&b){
+    if(b.shape==GeometryShape::Ellipsoid){append_ellipsoid(out,b);return;}
+    if(b.shape==GeometryShape::Cylinder){append_cylinder(out,b);return;}
+    if(b.shape==GeometryShape::SoftBox){append_soft_box(out,b);return;}
     const Vec3&c=b.center;const Vec3&h=b.half_extent;
     const std::array<Vec3,8>p={{{c.x-h.x,c.y-h.y,c.z-h.z},{c.x+h.x,c.y-h.y,c.z-h.z},{c.x+h.x,c.y+h.y,c.z-h.z},{c.x-h.x,c.y+h.y,c.z-h.z},{c.x-h.x,c.y-h.y,c.z+h.z},{c.x+h.x,c.y-h.y,c.z+h.z},{c.x+h.x,c.y+h.y,c.z+h.z},{c.x-h.x,c.y+h.y,c.z+h.z}}};
     constexpr int f[6][6]={{0,1,2,0,2,3},{5,4,7,5,7,6},{4,0,3,4,3,7},{1,5,6,1,6,2},{3,2,6,3,6,7},{4,5,1,4,1,0}};
@@ -102,8 +224,8 @@ bool GlesRenderer::initialize(){
         "outColor=vec4(mix(grade,sky,fog),vColor.a);}\n";
     glClearColor(0.55f,0.72f,0.82f,1.0f);
     gpu_chunks_.reserve(25);
-    dynamic_boxes_.reserve(66);
-    dynamic_vertices_.reserve(66U*36U*7U);
+    dynamic_boxes_.reserve(132);
+    dynamic_vertices_.reserve(132U*240U*7U);
     hud_vertices_.reserve(36000U);
     control_vertices_.reserve(16000U);
     GLuint v=compile(GL_VERTEX_SHADER,vs);
