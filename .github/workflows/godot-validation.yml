@@ -101,6 +101,9 @@ jobs:
           done
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='0.1'"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -F 'GLOBAL CITY-BETA'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Launch app and check rendered frame on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
