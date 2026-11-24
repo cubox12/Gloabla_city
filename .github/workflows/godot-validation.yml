@@ -68,8 +68,11 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
+      - uses: android-actions/setup-ndk@v3
+        with:
+          ndk-version: 27.2.12479018
       - name: Install Android SDK components
-        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1"
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -85,7 +88,7 @@ jobs:
           unzip -q "$APK" -d /tmp/global-city-beta-apk
           LIB="/tmp/global-city-beta-apk/lib/arm64-v8a/libglobalengine.so"
           test -s "$LIB"
-          NM="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          NM="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
           "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]ANativeActivity_onCreate$'
           "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]android_main$'
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='0.1'"
