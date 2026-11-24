@@ -246,12 +246,12 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     // The cyan beacon marks the first mission pickup; it turns green when reached.
     const Color beacon=mission_state_==MissionState::Completed?
         Color{0.18f,0.78f,0.34f,1}:Color{0.05f,0.82f,0.96f,1};
-    const float marker_y=mission_state_==MissionState::Completed?0.18f:0.18f;
-    out.push_back({{cx,marker_y,cz},{2.8f,0.12f,2.8f},beacon,false});
-    out.push_back({{cx,3.25f,cz},{0.16f,3.0f,0.16f},beacon,false});
-    out.push_back({{cx,6.35f,cz},{1.25f,0.13f,0.13f},beacon,false});
-    out.push_back({{cx,6.35f,cz},{0.13f,0.13f,1.25f},beacon,false});
-    out.push_back({{cx,7.05f,cz},{0.42f,0.42f,0.42f},beacon,false});
+    const float marker_x=cx,marker_z=cz+4.0f;
+    out.push_back({{marker_x,0.18f,marker_z},{2.8f,0.12f,2.8f},beacon,false});
+    out.push_back({{marker_x,3.25f,marker_z},{0.16f,3.0f,0.16f},beacon,false});
+    out.push_back({{marker_x,6.35f,marker_z},{1.25f,0.13f,0.13f},beacon,false});
+    out.push_back({{marker_x,6.35f,marker_z},{0.13f,0.13f,1.25f},beacon,false});
+    out.push_back({{marker_x,7.05f,marker_z},{0.42f,0.42f,0.42f},beacon,false});
 }
 void CityWorld::gather_dynamic_draw_boxes(std::vector<Box>&out)const{
     out.clear();
