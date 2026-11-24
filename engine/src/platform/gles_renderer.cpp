@@ -139,18 +139,20 @@ void GlesRenderer::resize(int w,int h){
     width_=w>0?w:1;height_=h>0?h:1;glViewport(0,0,width_,height_);
     hud_cached_width_=0;hud_cached_height_=0;
 }
-void GlesRenderer::upload_chunk(const WorldChunk&src,GpuChunk&dst){
+void GlesRenderer::upload_chunk(const WorldChunk&src,GpuChunk&dst,bool high_detail){
     dst.x=src.x;dst.z=src.z;
-    auto upload=[](const std::vector<Box>&boxes,GLuint&buffer,GLsizei&count){
-        std::vector<float>vertices;const std::size_t n=boxes.size()*36U*7U;
-        vertices.reserve(n);for(const Box&b:boxes)append_box(vertices,b);
-        if(!buffer)glGenBuffers(1,&buffer);
-        glBindBuffer(GL_ARRAY_BUFFER,buffer);
-        glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(vertices.size()*sizeof(float)),vertices.data(),GL_STATIC_DRAW);
-        count=static_cast<GLsizei>(vertices.size()/7U);
-    };
-    upload(src.high_detail_boxes,dst.high_buffer,dst.high_count);
-    upload(src.low_detail_boxes,dst.low_buffer,dst.low_count);
+    const std::vector<Box>&boxes=high_detail?src.high_detail_boxes:src.low_detail_boxes;
+    GLuint&buffer=high_detail?dst.high_buffer:dst.low_buffer;
+    GLsizei&count=high_detail?dst.high_count:dst.low_count;
+    std::vector<float>vertices;
+    vertices.reserve(boxes.size()*36U*7U);
+    for(const Box&b:boxes)append_box(vertices,b);
+    if(!buffer)glGenBuffers(1,&buffer);
+    if(!buffer){count=0;return;}
+    glBindBuffer(GL_ARRAY_BUFFER,buffer);
+    glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(vertices.size()*sizeof(float)),
+        vertices.data(),GL_STATIC_DRAW);
+    count=static_cast<GLsizei>(vertices.size()/7U);
 }
 void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
     const int distance=std::max(0,static_cast<int>(world.mission_distance()+0.5f));
@@ -293,11 +295,14 @@ void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
         auto it=std::find_if(gpu_chunks_.begin(),gpu_chunks_.end(),
             [&](const GpuChunk&g){return g.x==chunk.x&&g.z==chunk.z;});
         if(it==gpu_chunks_.end()){
-            gpu_chunks_.push_back({});it=std::prev(gpu_chunks_.end());upload_chunk(chunk,*it);
+            gpu_chunks_.push_back({});it=std::prev(gpu_chunks_.end());
+            it->x=chunk.x;it->z=chunk.z;
         }
         const bool high_lod=distance_sq<105.0f*105.0f;
-        const GLuint buffer=high_lod?it->high_buffer:it->low_buffer;
-        const GLsizei count=high_lod?it->high_count:it->low_count;
+        GLuint&buffer=high_lod?it->high_buffer:it->low_buffer;
+        GLsizei&count=high_lod?it->high_count:it->low_count;
+        // Upload only the active LOD; the other detail level stays off GPU until needed.
+        if(buffer==0)upload_chunk(chunk,*it,high_lod);
         glBindBuffer(GL_ARRAY_BUFFER,buffer);attributes();
         if(count>0)glDrawArrays(GL_TRIANGLES,0,count);
     }
