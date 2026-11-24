@@ -14,7 +14,7 @@ int main(){
     using clock=std::chrono::steady_clock;
     global_engine::CityWorld world;
     constexpr int frames=20000;
-    constexpr int synthetic_agents=512;
+    constexpr int synthetic_agents=2048;
     constexpr float dt=1.0f/30.0f;
     std::vector<Agent> agents;agents.reserve(synthetic_agents);
     for(int i=0;i<synthetic_agents;++i){
@@ -48,6 +48,8 @@ int main(){
     assert(s.generated_chunks>100);
     assert(s.evicted_chunks>0);
     assert(peak_chunks==25);
+    const std::size_t estimated_gpu_bytes=peak_boxes*36U*7U*sizeof(float);
+    assert(estimated_gpu_bytes<32U*1024U*1024U);
     assert(world.building_count()<=100);
     for(const Agent&a:agents)assert(std::isfinite(a.x)&&std::isfinite(a.z));
     std::cout<<"LOW-END CPU STRESS PASS\n"
