@@ -165,7 +165,9 @@ void CityWorld::reset(){
         mission_target_.z*mission_target_.z);
     mission_state_=MissionState::InProgress;
     mission_stage_=MissionStage::FindVehicle;
-    active_chunks_.clear();active_building_count_=0;streaming_stats_={};
+    active_chunks_.clear();active_chunks_.reserve(25);
+    stream_center_initialized_=false;stream_center_x_=0;stream_center_z_=0;
+    active_building_count_=0;streaming_stats_={};
     streaming_stats_.world_chunks_per_axis=kChunksPerAxis;
     streaming_stats_.active_radius=kChunkRadius;
     sync_chunks();
@@ -173,6 +175,8 @@ void CityWorld::reset(){
 void CityWorld::sync_chunks(){
     const int pcx=static_cast<int>(std::floor(player_position_.x/kChunkSize));
     const int pcz=static_cast<int>(std::floor(player_position_.z/kChunkSize));
+    if(stream_center_initialized_&&pcx==stream_center_x_&&pcz==stream_center_z_)return;
+    stream_center_x_=pcx;stream_center_z_=pcz;stream_center_initialized_=true;
     bool changed=false;
     auto keep=[&](const WorldChunk& c){
         return std::abs(c.x-pcx)<=kChunkRadius&&std::abs(c.z-pcz)<=kChunkRadius;
