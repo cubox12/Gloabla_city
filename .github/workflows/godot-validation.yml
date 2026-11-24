@@ -86,22 +86,8 @@ jobs:
           LIB="/tmp/global-city-beta-apk/lib/arm64-v8a/libglobalengine.so"
           test -s "$LIB"
           NM="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
-          "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]ANativeActivity_onCreate
-        uses: actions/upload-artifact@v4
-        with:
-          name: global-city-beta-0.1-arm64-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
-          "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]android_main
-        uses: actions/upload-artifact@v4
-        with:
-          name: global-city-beta-0.1-arm64-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
-
+          "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]ANativeActivity_onCreate$'
+          "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]android_main$'
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='0.1'"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "application-label:'GLOBAL CITY-BETA'"
       - name: Upload native debug APK artifact
