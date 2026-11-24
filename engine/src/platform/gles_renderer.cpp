@@ -104,7 +104,7 @@ bool GlesRenderer::initialize(){
     glGenBuffers(1,&dynamic_vertex_buffer_);glGenBuffers(1,&hud_vertex_buffer_);glGenBuffers(1,&control_vertex_buffer_);
     glEnable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-    glClearColor(.48f,.66f,.74f,1);
+    glClearColor(.55f,.72f,.82f,1);
     return dynamic_vertex_buffer_!=0&&hud_vertex_buffer_!=0&&control_vertex_buffer_!=0&&mvp_location_>=0&&view_location_>=0;
 }
 void GlesRenderer::resize(int w,int h){
