@@ -1,4 +1,4 @@
-# GLOBAL ENGINE 0.2 — large-world runtime
+# GLOBAL CITY-BETA 0.1 — GLOBAL ENGINE native runtime
 
 Native C++17 / Android NativeActivity / OpenGL ES 3.0 runtime for GLOBAL CITY.
 
@@ -9,10 +9,10 @@ Native C++17 / Android NativeActivity / OpenGL ES 3.0 runtime for GLOBAL CITY.
 - Deterministic streets, dashed road markings, sidewalks, facade variation, floor bands, rooftop ventilation, windows, street lamps and low-poly street trees.
 - Collision data is kept only for resident chunks.
 - Separate high-detail and low-detail chunk meshes. Windows and small props are omitted in low LOD.
-- GPU-side per-chunk VBO cache; chunks are uploaded only when first entering the active window.
+- GPU-side per-chunk VBO cache with lazy LOD upload; only the visible detail level is uploaded, and the other level is created when it becomes necessary.
 - Frustum-sphere and squared-distance culling before issuing draw calls.
 - Stylized low-poly player, five pedestrians and a small delivery car use one dynamic streaming VBO.
-- Color-graded fog shading softens distant geometry; a cached bitmap HUD reports mission stage and distance.
+- Color-graded fog shading softens distant geometry; a cached bitmap HUD reports mission stage and distance. Shader compilation has a simpler fallback, EGL startup is logged, and failed GPU initialization keeps a visible diagnostic surface.
 - Original real-time synthesized audio feedback for footsteps, package pickup and delivery.
 - Camera follows the player. Android controls: virtual joystick on the lower-left (touch and drag) to move; drag anywhere on the right half to orbit the camera. Pinch zoom is disabled; camera distance is fixed.
 
