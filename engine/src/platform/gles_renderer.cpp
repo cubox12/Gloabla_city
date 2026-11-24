@@ -89,7 +89,10 @@ bool GlesRenderer::initialize(){
         "#version 300 es\nprecision mediump float;in vec4 vColor;in float vFogDepth;"
         "out vec4 outColor;void main(){float fog=smoothstep(145.0,265.0,vFogDepth);"
         "vec3 lit=pow(max(vColor.rgb,vec3(0.0)),vec3(0.94));"
-        "outColor=vec4(mix(lit,vec3(0.52,0.67,0.74),fog),vColor.a);}\n";
+        "float contrast=(lit-vec3(0.5))*1.08+vec3(0.5);"
+        "vec3 grade=mix(contrast,contrast*vec3(1.04,1.02,0.96),0.28);"
+        "vec3 sky=vec3(0.55,0.72,0.82);"
+        "outColor=vec4(mix(grade,sky,fog),vColor.a);}\n";
     GLuint v=compile(GL_VERTEX_SHADER,vs),f=compile(GL_FRAGMENT_SHADER,fs);
     if(!v||!f){if(v)glDeleteShader(v);if(f)glDeleteShader(f);return false;}
     program_=glCreateProgram();glAttachShader(program_,v);glAttachShader(program_,f);
@@ -124,8 +127,9 @@ void GlesRenderer::upload_chunk(const WorldChunk&src,GpuChunk&dst){
 void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
     const int distance=std::max(0,static_cast<int>(world.mission_distance()+0.5f));
     const bool complete=world.mission_completed();
+    const int stage=static_cast<int>(world.mission_stage());
     if(hud_cached_width_!=width_||hud_cached_height_!=height_||
-       hud_cached_distance_!=distance||hud_cached_complete_!=complete){
+       hud_cached_distance_!=distance||hud_cached_complete_!=complete||hud_cached_stage_!=stage){
         hud_vertices_.clear();
         hud_vertices_.reserve(36000);
         auto add_vertex=[&](float px,float py,const Color&color){
@@ -163,12 +167,20 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
         };
         char distance_line[32]{};
         std::snprintf(distance_line,sizeof(distance_line),"DISTANCIA %03d M",distance);
-        draw_text(complete?"GLOBAL CITY MISION 01":"MISION 01 PRIMER REPARTO",27,24,white);
-        draw_text(complete?"VEHICULO LOCALIZADO":"VE AL COCHE AZUL",27,51,white);
-        draw_text(complete?"MISION COMPLETADA":distance_line,27,78,white);
+        draw_text("GLOBAL CITY MISION 01",27,24,white);
+        if(stage==0){
+            draw_text("BUSCA COCHE AZUL",27,51,white);
+            draw_text(distance_line,27,78,white);
+        }else if(stage==1){
+            draw_text("PAQUETE RECOGIDO",27,51,white);
+            draw_text("VE A LA ENTREGA",27,78,white);
+        }else{
+            draw_text("ENTREGA COMPLETADA",27,51,white);
+            draw_text("PRIMER REPARTO LISTO",27,78,white);
+        }
         draw_text("IZQ JOYSTICK  DER CAMARA",27,105,muted);
         hud_cached_width_=width_;hud_cached_height_=height_;
-        hud_cached_distance_=distance;hud_cached_complete_=complete;
+        hud_cached_distance_=distance;hud_cached_complete_=complete;hud_cached_stage_=stage;
         hud_vertex_count_=static_cast<GLsizei>(hud_vertices_.size()/7U);
         glBindBuffer(GL_ARRAY_BUFFER,hud_vertex_buffer_);
         glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(hud_vertices_.size()*sizeof(float)),
@@ -286,6 +298,6 @@ void GlesRenderer::shutdown(){
     dynamic_vertex_buffer_=0;hud_vertex_buffer_=0;control_vertex_buffer_=0;program_=0;
     mvp_location_=-1;view_location_=-1;dynamic_boxes_.clear();
     dynamic_vertices_.clear();hud_vertices_.clear();control_vertices_.clear();hud_vertex_count_=0;
-    hud_cached_width_=0;hud_cached_height_=0;hud_cached_distance_=-1;
+    hud_cached_width_=0;hud_cached_height_=0;hud_cached_distance_=-1;hud_cached_stage_=-1;
 }
 } // namespace global_engine::platform
