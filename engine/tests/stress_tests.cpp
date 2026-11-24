@@ -22,7 +22,7 @@ int main(){
         agents.push_back({f*0.37f,f*0.19f,std::sin(f)*1.4f,std::cos(f)*1.4f});
     }
     std::vector<double> frame_ms;frame_ms.reserve(frames);
-    std::vector<global_engine::Box> dynamic_boxes;dynamic_boxes.reserve(51);
+    std::vector<global_engine::Box> dynamic_boxes;dynamic_boxes.reserve(52);
     std::vector<global_engine::Box> render_boxes;render_boxes.reserve(15000);
     std::size_t peak_chunks=0,peak_boxes=0,peak_gpu_boxes=0;
     for(int frame=0;frame<frames;++frame){
@@ -46,7 +46,7 @@ int main(){
         render_boxes.insert(render_boxes.end(),dynamic_boxes.begin(),dynamic_boxes.end());
         for(const Agent&a:agents)
             render_boxes.push_back({{a.x,0.9f,a.z},{0.22f,0.45f,0.22f},{0.4f,0.5f,0.6f,1},false});
-        assert(render_boxes.size()==world.static_box_count()+51U+agents.size());
+        assert(render_boxes.size()==world.static_box_count()+dynamic_boxes.size()+agents.size());
         const auto end=clock::now();
         frame_ms.push_back(std::chrono::duration<double,std::milli>(end-begin).count());
         const auto&s=world.streaming_stats();
