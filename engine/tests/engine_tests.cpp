@@ -72,6 +72,31 @@ int main(){
         }
     }
     assert(streetlamp_poles==world.active_chunks().size()*8U);
+    std::size_t tree_trunks=0;
+    for(const WorldChunk&chunk:world.active_chunks()){
+        for(const Box&box:chunk.high_detail_boxes){
+            const bool tree_trunk=std::abs(box.center.y-1.05f)<1.0e-5f&&
+                std::abs(box.half_extent.x-0.18f)<1.0e-5f&&
+                std::abs(box.half_extent.z-0.18f)<1.0e-5f&&
+                std::abs(box.color.r-0.31f)<1.0e-5f&&
+                std::abs(box.color.g-0.20f)<1.0e-5f;
+            if(tree_trunk)++tree_trunks;
+            if(!tree_trunk&&!(
+                std::abs(box.center.y-2.65f)<1.0e-5f&&
+                std::abs(box.color.r-0.16f)<1.0e-5f&&
+                std::abs(box.color.g-0.36f)<1.0e-5f))continue;
+            for(const Box&building:chunk.collision_boxes){
+                const bool overlaps_x=std::abs(box.center.x-building.center.x)<
+                    box.half_extent.x+building.half_extent.x;
+                const bool overlaps_z=std::abs(box.center.z-building.center.z)<
+                    box.half_extent.z+building.half_extent.z;
+                const bool overlaps_y=box.center.y+box.half_extent.y>
+                    building.center.y-building.half_extent.y;
+                assert(!(overlaps_x&&overlaps_z&&overlaps_y));
+            }
+        }
+    }
+    assert(tree_trunks==world.active_chunks().size()*4U);
     assert(!world.player_intersects_building());
     assert(world.mission_state()==global_engine::MissionState::InProgress);
     assert(world.mission_stage()==global_engine::MissionStage::FindVehicle);
