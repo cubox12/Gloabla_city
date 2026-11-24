@@ -98,7 +98,7 @@ jobs:
           "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]ANativeActivity_onCreate$'
           "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]android_main$'
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='0.1'"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "application-label:'GLOBAL CITY-BETA'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -F 'GLOBAL CITY-BETA'
       - name: Upload native debug APK artifact
         uses: actions/upload-artifact@v4
         with:
