@@ -96,6 +96,23 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         }
     }
 
+    // High-contrast zebra crossings at each procedural avenue intersection.
+    // They are part of the low-detail mesh too, so road readability survives LOD changes.
+    const Color crosswalk_paint{0.88f,0.90f,0.88f,1};
+    for(int ix=0;ix<2;++ix)for(int iz=0;iz<2;++iz){
+        const float intersection_x=ox+16.0f+static_cast<float>(ix)*32.0f;
+        const float intersection_z=oz+16.0f+static_cast<float>(iz)*32.0f;
+        for(float side:{-1.0f,1.0f}){
+            for(int stripe=0;stripe<5;++stripe){
+                const float offset=(static_cast<float>(stripe)-2.0f)*0.72f;
+                add({{intersection_x+side*5.2f+offset,0.082f,intersection_z},
+                    {0.27f,0.025f,3.25f},crosswalk_paint,false},true);
+                add({{intersection_x,0.082f,intersection_z+side*5.2f+offset},
+                    {3.25f,0.025f,0.27f},crosswalk_paint,false},true);
+            }
+        }
+    }
+
     const Color facades[]={{0.76f,0.61f,0.43f,1},{0.34f,0.60f,0.64f,1},
         {0.73f,0.39f,0.29f,1},{0.48f,0.57f,0.70f,1},{0.61f,0.66f,0.44f,1}};
     // Small low-poly street trees make the avenues feel inhabited at a low GPU cost.
