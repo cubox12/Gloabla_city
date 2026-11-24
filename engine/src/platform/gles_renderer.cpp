@@ -105,7 +105,7 @@ bool GlesRenderer::initialize(){
     dynamic_boxes_.reserve(66);
     dynamic_vertices_.reserve(66U*36U*7U);
     hud_vertices_.reserve(36000U);
-    control_vertices_.reserve(32U*3U*7U*12U);
+    control_vertices_.reserve(16000U);
     GLuint v=compile(GL_VERTEX_SHADER,vs);
     if(!v){__android_log_print(ANDROID_LOG_ERROR,"GlobalEngine","Vertex shader compilation failed");return false;}
     GLuint f=compile(GL_FRAGMENT_SHADER,fs);
@@ -238,7 +238,7 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
 
     // Fixed-position virtual stick on the left; right half remains a free-look drag area.
     control_vertices_.clear();
-    control_vertices_.reserve(32U*3U*7U*2U+32U*6U*7U);
+    control_vertices_.reserve(16000U);
     auto add_control_vertex=[&](float px,float py,const Color&color){
         const float x=2.0f*px/static_cast<float>(width_)-1.0f;
         const float y=1.0f-2.0f*py/static_cast<float>(height_);
