@@ -199,13 +199,17 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         }
         add({{x,1.0f,z-d-0.07f},{0.7f,1.0f,0.07f},{0.20f,0.23f,0.24f,1},false},false);
 
-        // Street lamps use three simple meshes each; the warm head is easy to spot at night-like distances.
+        // Street lamps sit on the sidewalk strips (5.2 units from the road
+        // centerlines), never in the 8-unit carriageway. Their arms point toward
+        // the adjacent road instead of cutting across the pedestrian path.
         for(int side=-1;side<=1;side+=2){
-            const float tx=x+static_cast<float>(side)*12.0f;
-            const float tz=z+11.0f;
+            const float tx=x+static_cast<float>(side)*10.8f;
+            const float tz=z;
             add({{tx,2.05f,tz},{0.075f,2.05f,0.075f},{0.26f,0.28f,0.29f,1},false},false);
-            add({{tx,4.02f,tz-0.66f},{0.075f,0.075f,0.68f},{0.26f,0.28f,0.29f,1},false},false);
-            add({{tx,3.92f,tz-1.25f},{0.27f,0.13f,0.31f},{0.91f,0.79f,0.50f,1},false},false);
+            add({{tx+static_cast<float>(side)*0.66f,4.02f,tz},
+                {0.68f,0.075f,0.075f},{0.26f,0.28f,0.29f,1},false},false);
+            add({{tx+static_cast<float>(side)*1.25f,3.92f,tz},
+                {0.13f,0.27f,0.31f},{0.91f,0.79f,0.50f,1},false},false);
         }
     }
     return chunk;
