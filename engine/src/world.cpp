@@ -177,7 +177,8 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
 }
 
 void CityWorld::reset(){
-    player_position_={};player_velocity_={};npc_elapsed_=0.0f;
+    player_position_={};player_velocity_={};player_facing_={0.0f,0.0f,-1.0f};
+    player_animation_phase_=0.0f;npc_elapsed_=0.0f;
     vehicle_position_={96.0f,0.0f,-6.0f};
     mission_target_=vehicle_position_;
     mission_distance_=std::sqrt(mission_target_.x*mission_target_.x+
