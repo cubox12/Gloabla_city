@@ -16,7 +16,9 @@ int main(){
     const VirtualStickOutput right=map_virtual_stick(stick.center_x+stick.radius,stick.center_y,stick);
     assert(right.move_x>0.99f&&std::abs(right.move_z)<1.0e-5f);
     const VirtualStickOutput up=map_virtual_stick(stick.center_x,stick.center_y-stick.radius,stick);
-    assert(up.move_z>0.99f&&std::abs(up.move_x)<1.0e-5f);
+    assert(up.move_z< -0.99f&&std::abs(up.move_x)<1.0e-5f);
+    const VirtualStickOutput down=map_virtual_stick(stick.center_x,stick.center_y+stick.radius,stick);
+    assert(down.move_z>0.99f&&std::abs(down.move_x)<1.0e-5f);
     const VirtualStickOutput diagonal=map_virtual_stick(stick.center_x+stick.radius*2.0f,
         stick.center_y-stick.radius*2.0f,stick);
     assert(diagonal.magnitude<=1.0f&&std::abs(diagonal.move_x)<=1.0f&&std::abs(diagonal.move_z)<=1.0f);
