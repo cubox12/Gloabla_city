@@ -16,7 +16,7 @@ constexpr float kAcceleration=22.0f;
 constexpr int kChunkRadius=2;
 constexpr int kChunksPerAxis=64;
 constexpr float kMissionCompleteRadius=4.25f;
-constexpr std::size_t kDynamicBoxCount=52;
+constexpr std::size_t kDynamicBoxCount=66;
 float clamp_input(float v) noexcept { return std::max(-1.0f,std::min(1.0f,v)); }
 bool overlap(float a0,float a1,float b0,float b1) noexcept { return a0<b1&&a1>b0; }
 std::uint32_t hash_cell(int x,int z,int salt) noexcept {
@@ -340,6 +340,24 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     const Color headlights{0.95f,0.84f,0.58f,1};
     out.push_back({{cx+2.23f,0.80f,cz-0.66f},{0.07f,0.14f,0.20f},headlights,false});
     out.push_back({{cx+2.23f,0.80f,cz+0.66f},{0.07f,0.14f,0.20f},headlights,false});
+
+    // Side glazing, door handles, front grille, bumpers, tail lamps and wheel hubs.
+    for(float side:{-1.0f,1.0f}){
+        out.push_back({{cx-0.10f,1.35f,cz+side*0.91f},{0.73f,0.22f,0.045f},glass,false});
+        out.push_back({{cx+0.18f,1.04f,cz+side*1.045f},{0.20f,0.035f,0.035f},
+            {0.76f,0.79f,0.78f,1},false});
+    }
+    const Color grille{0.035f,0.055f,0.068f,1};
+    const Color bumper{0.12f,0.15f,0.18f,1};
+    const Color tail_lamps{0.72f,0.08f,0.055f,1};
+    const Color wheel_hubs{0.48f,0.53f,0.56f,1};
+    out.push_back({{cx+2.30f,0.76f,cz},{0.055f,0.22f,0.44f},grille,false});
+    out.push_back({{cx+2.28f,0.45f,cz},{0.15f,0.12f,0.94f},bumper,false});
+    out.push_back({{cx-2.28f,0.45f,cz},{0.15f,0.12f,0.94f},bumper,false});
+    out.push_back({{cx-2.27f,0.82f,cz-0.70f},{0.07f,0.15f,0.18f},tail_lamps,false});
+    out.push_back({{cx-2.27f,0.82f,cz+0.70f},{0.07f,0.15f,0.18f},tail_lamps,false});
+    for(float sx:{-1.35f,1.35f})for(float sz:{-1.0f,1.0f})
+        out.push_back({{cx+sx,0.38f,cz+sz*1.145f},{0.19f,0.18f,0.045f},wheel_hubs,false});
 
     // The cyan beacon marks the first mission pickup; it turns green when reached.
     const Color beacon=mission_state_==MissionState::Completed?
