@@ -55,6 +55,23 @@ int main(){
         }
     }
     assert(crosswalk_count==world.active_chunks().size()*80U);
+    std::size_t streetlamp_poles=0;
+    for(const WorldChunk&chunk:world.active_chunks()){
+        for(const Box&box:chunk.high_detail_boxes){
+            const bool lamp_pole=std::abs(box.center.y-2.05f)<1.0e-5f&&
+                std::abs(box.half_extent.x-0.075f)<1.0e-5f&&
+                std::abs(box.half_extent.z-0.075f)<1.0e-5f&&
+                std::abs(box.color.r-0.26f)<1.0e-5f&&
+                std::abs(box.color.g-0.28f)<1.0e-5f;
+            if(!lamp_pole)continue;
+            ++streetlamp_poles;
+            const float road_x=std::round(box.center.x/32.0f)*32.0f;
+            const float road_z=std::round(box.center.z/32.0f)*32.0f;
+            assert(std::abs(box.center.x-road_x)>4.0f);
+            assert(std::abs(box.center.z-road_z)>4.0f);
+        }
+    }
+    assert(streetlamp_poles==world.active_chunks().size()*8U);
     assert(!world.player_intersects_building());
     assert(world.mission_state()==global_engine::MissionState::InProgress);
     assert(world.mission_stage()==global_engine::MissionStage::FindVehicle);
