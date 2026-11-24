@@ -1,6 +1,6 @@
-# GLOBAL CITY — transición a GLOBAL ENGINE
+# GLOBAL CITY-BETA 0.1 — motor nativo GLOBAL ENGINE
 
-GLOBAL CITY 0.6 se conserva como prototipo de referencia. La nueva línea de desarrollo es **GLOBAL ENGINE 0.1**, un motor propio en C++17 que se desarrolla por separado y no carga el runtime de Godot.
+GLOBAL CITY 0.6 se conserva como prototipo de referencia. La nueva línea de desarrollo es **GLOBAL CITY-BETA 0.1 / GLOBAL ENGINE**, un motor propio en C++17 que se desarrolla por separado y no carga el runtime de Godot.
 
 El núcleo vive en engine/ y se puede compilar y probar en PC sin Android SDK ni bibliotecas de terceros. La rama nativa incluye ya una primera misión corta de prueba, con mundo procedural por sectores, coche de reparto, baliza de destino y HUD.
 
