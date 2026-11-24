@@ -7,6 +7,7 @@ namespace global_engine::platform {
 struct CameraState {
     float yaw{-1.45f}; float pitch{0.46f}; float distance{14.0f};
     float joystick_x{0.0f},joystick_y{0.0f},move_x{0.0f},move_y{0.0f};
+    float stick_knob_x{0.0f},stick_knob_y{0.0f},stick_magnitude{0.0f};
     bool joystick_active{false};
 };
 class GlesRenderer {
