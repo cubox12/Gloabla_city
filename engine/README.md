@@ -6,23 +6,24 @@ Native C++17 / Android NativeActivity / OpenGL ES 3.0 runtime for GLOBAL CITY.
 - Procedural 4096 x 4096 world grid (64 x 64 chunks, each 64 world units).
 - Lazy chunk generation around the player; 5 x 5 active window (25 resident chunks maximum).
 - Chunks outside the active window are evicted from CPU memory and their GPU buffers are released.
-- Deterministic streets, dashed road markings, sidewalks, facade variation, floor bands, rooftop ventilation, windows and street lamps.
+- Deterministic streets, dashed road markings, sidewalks, facade variation, floor bands, rooftop ventilation, windows, street lamps and low-poly street trees.
 - Collision data is kept only for resident chunks.
 - Separate high-detail and low-detail chunk meshes. Windows and small props are omitted in low LOD.
 - GPU-side per-chunk VBO cache; chunks are uploaded only when first entering the active window.
 - Frustum-sphere and squared-distance culling before issuing draw calls.
 - Stylized low-poly player, five pedestrians and a small delivery car use one dynamic streaming VBO.
-- Fog shading softens distant geometry; a cached bitmap HUD reports mission objective and distance.
+- Color-graded fog shading softens distant geometry; a cached bitmap HUD reports mission stage and distance.
+- Original real-time synthesized audio feedback for footsteps, package pickup and delivery.
 - Camera follows the player. Android controls: virtual joystick on the lower-left (touch and drag) to move; drag anywhere on the right half to orbit the camera. Pinch zoom is disabled; camera distance is fixed.
 
-## First playable mission — prototype 01
-`Mision 01: Primer reparto` is an intentionally small vertical slice:
-1. Start on the city avenue.
-2. Find the blue delivery car about 96 world units from spawn.
-3. Reach the cyan beacon beside the car; within 4.25 units the mission changes to complete and the beacon turns green.
-4. The HUD displays current distance and mission state.
+## First playable mission — mission 01
+`Misión 01: Primer reparto` now has a complete search-pickup-delivery loop:
+1. Start on the city avenue and follow the HUD distance to the blue delivery car at (96, -6).
+2. Enter its 4.25-unit pickup radius. The parcel appears on the character and the objective moves to (160, -64).
+3. Follow the cyan beacon to the delivery area. Entering its 4.25-unit radius completes the mission and turns the beacon green.
+4. Original synthesized sound effects play on footsteps, pickup and delivery.
 
-This is an early, incomplete mission prototype. It currently ends when the vehicle is found: package pickup, dialogue, delivery destination, traffic, vehicle driving, character animation, audio, save/load and full mission scripting are not implemented yet.
+Pickup and delivery are proximity-triggered; this slice does not yet include dialogue, vehicle driving, traffic, skeletal animation, minimap or save/load.
 
 ## Build and tests
 ```bash
