@@ -92,11 +92,77 @@ jobs:
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           mkdir -p /tmp/global-city-beta-apk
           unzip -q "$APK" -d /tmp/global-city-beta-apk
-          LIB="/tmp/global-city-beta-apk/lib/arm64-v8a/libglobalengine.so"
-          test -s "$LIB"
           NM="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
-          "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]ANativeActivity_onCreate$'
-          "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]android_main$'
+          for ABI in arm64-v8a x86_64; do
+            LIB="/tmp/global-city-beta-apk/lib/$ABI/libglobalengine.so"
+            test -s "$LIB"
+            "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]ANativeActivity_onCreate
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='0.1'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -F 'GLOBAL CITY-BETA'
+      - name: Launch app and check rendered frame on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            APK="android/app/build/outputs/apk/debug/app-debug.apk"
+            adb install -r "$APK"
+            adb shell monkey -p com.globalcity.app 1
+            sleep 6
+            adb shell pidof com.globalcity.app
+            LOG="$(adb logcat -d -s GlobalEngine:I GlobalEngine:E AndroidRuntime:E)"
+            printf '%s\n' "$LOG"
+            printf '%s\n' "$LOG" | grep -F "GLOBAL CITY-BETA 0.1 native entry point reached"
+            printf '%s\n' "$LOG" | grep -F "GLES ready:"
+            adb exec-out screencap -p > /tmp/global-city-beta-screen.png
+            python -m pip install --quiet pillow
+            python -c 'from PIL import Image; im=Image.open("/tmp/global-city-beta-screen.png").convert("RGB"); w,h=im.size; p=list(im.crop((w//4,h//4,3*w//4,3*h//4)).getdata()); ratio=sum(1 for c in p if max(c)>20)/len(p); print(f"non-black center pixels: {ratio:.1%}"); assert ratio>0.05, "rendered frame is nearly black"'
+      - name: Upload native debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: global-city-beta-0.1-arm64-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+            "$NM" -D --defined-only "$LIB" | grep -Eq '[[:space:]]android_main
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='0.1'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -F 'GLOBAL CITY-BETA'
+      - name: Launch app and check rendered frame on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            APK="android/app/build/outputs/apk/debug/app-debug.apk"
+            adb install -r "$APK"
+            adb shell monkey -p com.globalcity.app 1
+            sleep 6
+            adb shell pidof com.globalcity.app
+            LOG="$(adb logcat -d -s GlobalEngine:I GlobalEngine:E AndroidRuntime:E)"
+            printf '%s\n' "$LOG"
+            printf '%s\n' "$LOG" | grep -F "GLOBAL CITY-BETA 0.1 native entry point reached"
+            printf '%s\n' "$LOG" | grep -F "GLES ready:"
+            adb exec-out screencap -p > /tmp/global-city-beta-screen.png
+            python -m pip install --quiet pillow
+            python -c 'from PIL import Image; im=Image.open("/tmp/global-city-beta-screen.png").convert("RGB"); w,h=im.size; p=list(im.crop((w//4,h//4,3*w//4,3*h//4)).getdata()); ratio=sum(1 for c in p if max(c)>20)/len(p); print(f"non-black center pixels: {ratio:.1%}"); assert ratio>0.05, "rendered frame is nearly black"'
+      - name: Upload native debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: global-city-beta-0.1-arm64-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+          done
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -F "versionName='0.1'"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree "$APK" AndroidManifest.xml | grep -F 'GLOBAL CITY-BETA'
       - name: Launch app and check rendered frame on Android emulator
