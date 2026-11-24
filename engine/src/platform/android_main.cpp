@@ -19,7 +19,7 @@ struct State {
     CityWorld world; CameraState camera; GlesRenderer renderer; InputState input;
     EGLDisplay display{EGL_NO_DISPLAY}; EGLSurface surface{EGL_NO_SURFACE};
     EGLContext context{EGL_NO_CONTEXT}; int width{1},height{1};
-    bool ready{false}; float pinch{0};
+    bool ready{false};
     std::unordered_map<int,Touch> touches;
     std::chrono::steady_clock::time_point last;
 };
@@ -66,7 +66,7 @@ void command(android_app* app,int32_t cmd) {
         s->width=ANativeWindow_getWidth(app->window);s->height=ANativeWindow_getHeight(app->window);
         s->renderer.resize(s->width,s->height);
     } else if(cmd==APP_CMD_LOST_FOCUS){
-        s->input={};s->touches.clear();s->pinch=0;
+        s->input={};s->touches.clear();s->camera.joystick_active=false;s->camera.move_x=0;s->camera.move_y=0;
     }
 }
 void key_input(State& s,int key,bool down) {
@@ -91,26 +91,26 @@ int32_t input(android_app* app,AInputEvent* e) {
             AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
         const int id=AMotionEvent_getPointerId(e,i);
         const float x=AMotionEvent_getX(e,i),y=AMotionEvent_getY(e,i);
-        s->touches[id]={x,y,x,y,x<static_cast<float>(s->width)*0.46f};return 1;
+        const bool joystick=x<static_cast<float>(s->width)*0.48f&&y>static_cast<float>(s->height)*0.45f;
+        s->touches[id]={x,y,x,y,joystick};
+        if(joystick){
+            s->camera.joystick_active=true;s->camera.joystick_x=x;s->camera.joystick_y=y;
+            s->camera.move_x=0;s->camera.move_y=0;s->input.move_x=0;s->input.move_z=0;
+        }
+        return 1;
     }
     if(mask==AMOTION_EVENT_ACTION_MOVE){
-        if(n>=2){
-            const float dx=AMotionEvent_getX(e,0)-AMotionEvent_getX(e,1);
-            const float dy=AMotionEvent_getY(e,0)-AMotionEvent_getY(e,1);
-            const float d=std::sqrt(dx*dx+dy*dy);
-            if(s->pinch>1.0f&&d>1.0f)
-                s->camera.distance=std::max(7.0f,std::min(55.0f,s->camera.distance*s->pinch/d));
-            s->pinch=d;return 1;
-        }
-        s->pinch=0;
         for(std::size_t i=0;i<n;++i){
             const int id=AMotionEvent_getPointerId(e,i);auto it=s->touches.find(id);
             if(it==s->touches.end())continue;
             Touch& t=it->second;const float x=AMotionEvent_getX(e,i),y=AMotionEvent_getY(e,i);
             const float dx=x-t.x,dy=y-t.y;t.x=x;t.y=y;
             if(t.joystick){
-                s->input.move_x=std::max(-1.0f,std::min(1.0f,(x-t.ox)/74.0f));
-                s->input.move_z=std::max(-1.0f,std::min(1.0f,(t.oy-y)/74.0f));
+                float mx=(x-t.ox)/64.0f,my=(t.oy-y)/64.0f;
+                const float length=std::sqrt(mx*mx+my*my);
+                if(length>1.0f){mx/=length;my/=length;}
+                s->input.move_x=mx;s->input.move_z=my;
+                s->camera.move_x=mx;s->camera.move_y=my;
             } else {
                 s->camera.yaw-=dx*0.005f;
                 s->camera.pitch=std::max(0.18f,std::min(1.12f,s->camera.pitch-dy*0.0035f));
@@ -119,16 +119,16 @@ int32_t input(android_app* app,AInputEvent* e) {
     }
     if(mask==AMOTION_EVENT_ACTION_UP||mask==AMOTION_EVENT_ACTION_POINTER_UP||
        mask==AMOTION_EVENT_ACTION_CANCEL){
-        if(mask==AMOTION_EVENT_ACTION_CANCEL){s->touches.clear();s->input={};}
+        if(mask==AMOTION_EVENT_ACTION_CANCEL){s->touches.clear();s->input={};s->camera.joystick_active=false;s->camera.move_x=0;s->camera.move_y=0;}
         else {
             const std::size_t i=static_cast<std::size_t>((action&AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)>>
                 AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
             if(i<n){
                 const int id=AMotionEvent_getPointerId(e,i);auto it=s->touches.find(id);
-                if(it!=s->touches.end()&&it->second.joystick)s->input={};
+                if(it!=s->touches.end()&&it->second.joystick){s->input.move_x=0;s->input.move_z=0;s->camera.joystick_active=false;s->camera.move_x=0;s->camera.move_y=0;}
                 s->touches.erase(id);
             }
-        }s->pinch=0;return 1;
+        }return 1;
     }
     return 0;
 }
