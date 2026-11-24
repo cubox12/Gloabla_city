@@ -7,6 +7,8 @@ Native C++17 / Android NativeActivity / OpenGL ES 3.0 runtime for GLOBAL CITY.
 - Lazy chunk generation around the player; 5 x 5 active window (25 resident chunks maximum).
 - Chunks outside the active window are evicted from CPU memory and their GPU buffers are released.
 - Deterministic streets, dashed road markings, sidewalks, facade variation, floor bands, rooftop ventilation, windows, street lamps and low-poly street trees.
+- Visual pass: procedural zebra crossings at all avenue intersections, varied storefront signs and striped awnings, occasional rooftop water tanks, and a vertical sky/horizon fog gradient. Crosswalk paint is retained in the low-detail mesh.
+- Low-detail chunk storage reserves capacity for the expanded street-marking set to avoid repeated vector growth during sector generation.
 - Collision data is kept only for resident chunks.
 - Separate high-detail and low-detail chunk meshes. Windows and small props are omitted in low LOD.
 - GPU-side per-chunk VBO cache with lazy LOD upload; only the visible detail level is uploaded, and the other level is created when it becomes necessary.
