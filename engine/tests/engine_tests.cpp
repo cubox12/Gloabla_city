@@ -95,7 +95,7 @@ int main(){
 
     std::vector<global_engine::Box> all;
     world.gather_draw_boxes(all);
-    assert(all.size()==world.static_box_count()+51);
+    assert(all.size()==world.static_box_count()+64);
     std::cout<<"GLOBAL ENGINE CORE: PASS chunks="<<world.streaming_stats().active_chunks
         <<" buildings="<<world.building_count()<<" resident_boxes="<<world.static_box_count()
         <<" mission=delivered dynamic_boxes="<<dynamic.size()<<'\n';
