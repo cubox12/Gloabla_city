@@ -11,10 +11,10 @@ Native C++17 / Android NativeActivity / OpenGL ES 3.0 runtime for GLOBAL CITY.
 - Separate high-detail and low-detail chunk meshes. Windows and small props are omitted in low LOD.
 - GPU-side per-chunk VBO cache with lazy LOD upload; only the visible detail level is uploaded, and the other level is created when it becomes necessary.
 - Frustum-sphere and squared-distance culling before issuing draw calls.
-- Stylized low-poly player, five pedestrians and a small delivery car use one dynamic streaming VBO.
-- Color-graded fog shading softens distant geometry; a cached bitmap HUD reports mission stage and distance. Shader compilation has a simpler fallback, EGL startup is logged, and failed GPU initialization keeps a visible diagnostic surface.
-- Original real-time synthesized audio feedback for footsteps, package pickup and delivery.
-- Camera follows the player. Android controls: virtual joystick on the lower-left (touch and drag) to move; drag anywhere on the right half to orbit the camera. Pinch zoom is disabled; camera distance is fixed.
+- Stylized low-poly player, five pedestrians and a small delivery car use one dynamic streaming VBO. The player and pedestrians have lightweight procedural gait/bob animation; the mission beacon pulses to make objectives easier to spot.
+- Saturated facade colors, stronger warm color grading, height-aware light tint and distance fog improve depth/readability without texture memory or shadow-map passes. A cached bitmap HUD reports mission stage and distance. Shader compilation has a simpler fallback, EGL startup is logged, and failed GPU initialization keeps a visible diagnostic surface.
+- Original synthesized audio feedback includes a rising pickup chime, a four-note delivery cue and short low-frequency footsteps.
+- Camera follows the player. Android controls: large fixed-base virtual joystick in the lower-left with circular clamping and a small radial deadzone; the right side remains a separate camera-drag region. Touch pointers are tracked independently so camera movement cannot steal the joystick finger. Pinch zoom is disabled; camera distance is fixed.
 
 ## First playable mission — mission 01
 `Misión 01: Primer reparto` now has a complete search-pickup-delivery loop:
@@ -23,7 +23,7 @@ Native C++17 / Android NativeActivity / OpenGL ES 3.0 runtime for GLOBAL CITY.
 3. Follow the cyan beacon to the delivery area. Entering its 4.25-unit radius completes the mission and turns the beacon green.
 4. Original synthesized sound effects play on footsteps, pickup and delivery.
 
-Pickup and delivery are proximity-triggered; this slice does not yet include dialogue, vehicle driving, traffic, skeletal animation, minimap or save/load.
+Pickup and delivery are proximity-triggered; this slice does not yet include dialogue, vehicle driving, traffic AI, skeletal animation, minimap or save/load. Character motion is procedural low-poly limb movement rather than a rigged skeleton.
 
 ## Build and tests
 ```bash
@@ -36,4 +36,4 @@ ctest --test-dir build-engine --output-on-failure
 `global_engine_stress` simulates prolonged traversal, chunk creation/eviction and a synthetic crowd workload. It reports CPU frame-time percentiles on the machine running the test and checks the resident chunk cap. It is a repeatable CPU-side stress test, not a GPU/thermal benchmark and not a substitute for profiling on a physical low-end Android device.
 
 ## Current limits
-The world grid is finite and generated on demand. The renderer is still a colored-geometry prototype rather than a textured/PBR pipeline. There is no real-time shadow map, normal-mapped material system, traffic AI, vehicle physics, mission scripting framework or animation system. Android requires OpenGL ES 3.0.
+The world grid is finite and generated on demand. The renderer is still a colored-geometry low-poly pipeline rather than a textured/PBR pipeline. There is no real-time shadow map, normal-mapped material system, traffic AI, vehicle physics, skeletal rig or mission scripting framework. Android requires OpenGL ES 3.0. Emulator smoke tests use Google SwiftShader; the Adreno 610 still needs physical-device performance, thermal and touch-feel testing.
