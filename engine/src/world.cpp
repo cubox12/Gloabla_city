@@ -433,6 +433,15 @@ void CityWorld::update(float delta,const InputState&input){
 void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     const float player_speed=std::sqrt(player_velocity_.x*player_velocity_.x+
         player_velocity_.z*player_velocity_.z);
+    // Soft contact shadows ground the characters and parked vehicle without a shadow-map pass.
+    // These translucent flattened ellipsoids are cheap enough for the Adreno 610 target.
+    auto contact_shadow=[&](const Vec3&position,float radius_x,float radius_z,float alpha){
+        Box shadow{{position.x,0.045f,position.z},{radius_x,0.022f,radius_z},
+            {0.018f,0.025f,0.030f,alpha},false};
+        shadow.shape=GeometryShape::Ellipsoid;
+        out.push_back(shadow);
+    };
+    contact_shadow(player_position_,0.43f,0.34f,0.34f);
     append_humanoid(out,player_position_,{0.12f,0.35f,0.62f,1},{0.12f,0.15f,0.19f,1},
         player_facing_,player_animation_phase_,
         std::min(1.0f,player_speed/kMoveSpeed),true);
@@ -447,11 +456,13 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
         const Color shirt=(i%2==0)?Color{0.68f,0.30f,0.18f,1}:Color{0.12f,0.35f,0.55f,1};
         const Color pants=(i%2==0)?Color{0.18f,0.20f,0.22f,1}:Color{0.30f,0.28f,0.23f,1};
         const Vec3 walking_forward{-std::sin(phase),0.0f,std::cos(phase)};
+        contact_shadow({x,0.0f,z},0.42f,0.33f,0.27f);
         append_humanoid(out,{x,0,z},shirt,pants,walking_forward,npc_elapsed_*6.2f+static_cast<float>(i)*1.4f,0.82f);
     }
 
     // Parked blue compact delivery car: body, cabin, front/rear glass and four tyres.
     const float cx=vehicle_position_.x,cz=vehicle_position_.z;
+    contact_shadow(vehicle_position_,2.34f,1.12f,0.30f);
     const Color car_blue{0.06f,0.25f,0.54f,1};
     const Color glass{0.15f,0.42f,0.54f,1};
     const Color rubber{0.045f,0.052f,0.058f,1};
