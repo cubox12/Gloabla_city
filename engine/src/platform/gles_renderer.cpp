@@ -154,7 +154,7 @@ void append_soft_box(std::vector<float>&out,const Box&b){
         for(int row=0;row<4;++row)for(int col=0;col<4;++col){
             const auto p00=rounded(face_point(face,row,col),normals[face]);
             const auto p10=rounded(face_point(face,row,col+1),normals[face]);
-            const auto p11=rounded(face,row+1,col+1,normals[face]);
+            const auto p11=rounded(face_point(face,row+1,col+1),normals[face]);
             const auto p01=rounded(face_point(face,row+1,col),normals[face]);
             append_lit_vertex(out,p00.first,p00.second,b.color);
             append_lit_vertex(out,p10.first,p10.second,b.color);
