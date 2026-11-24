@@ -100,8 +100,8 @@ bool GlesRenderer::initialize(){
     if(!f){
         // Keep a deliberately simple GLES 3 fallback for drivers that reject optional fog/color grading.
         static constexpr char fallback_fs[]=
-            "#version 300 es\\nprecision mediump float;in vec4 vColor;"
-            "out vec4 outColor;void main(){outColor=vColor;}\\n";
+            "#version 300 es\nprecision mediump float;in vec4 vColor;"
+            "out vec4 outColor;void main(){outColor=vColor;}\n";
         __android_log_print(ANDROID_LOG_WARN,"GlobalEngine","Using simple fragment shader fallback");
         f=compile(GL_FRAGMENT_SHADER,fallback_fs);
     }
@@ -113,7 +113,7 @@ bool GlesRenderer::initialize(){
     GLint linked=0;glGetProgramiv(program_,GL_LINK_STATUS,&linked);
     if(linked!=GL_TRUE){
         GLint log_size=0;glGetProgramiv(program_,GL_INFO_LOG_LENGTH,&log_size);
-        std::string link_log(static_cast<std::size_t>(std::max(1,log_size)),'\\0');
+        std::string link_log(static_cast<std::size_t>(std::max(1,log_size)),'\0');
         glGetProgramInfoLog(program_,log_size,nullptr,link_log.data());
         __android_log_print(ANDROID_LOG_ERROR,"GlobalEngine","Program link failed: %s",link_log.c_str());
         glDeleteProgram(program_);program_=0;return false;
