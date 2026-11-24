@@ -157,8 +157,7 @@ void CityWorld::update(float delta,const InputState&input){
     if(!collides_with_building(next))player_position_.z=next.z;else player_velocity_.z=0;
     sync_chunks();
 }
-void CityWorld::gather_dynamic_draw_boxes(std::vector<Box>&out)const{
-    out.clear();out.reserve(12);
+void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     out.push_back({{player_position_.x,1.02f,player_position_.z},{0.34f,0.56f,0.24f},{0.15f,0.42f,0.67f,1},false});
     out.push_back({{player_position_.x,1.78f,player_position_.z},{0.22f,0.22f,0.22f},{0.78f,0.57f,0.42f,1},false});
     for(int i=0;i<5;++i){
@@ -171,10 +170,18 @@ void CityWorld::gather_dynamic_draw_boxes(std::vector<Box>&out)const{
         out.push_back({{x,1.55f,z},{0.18f,0.18f,0.18f},{0.78f,0.57f,0.42f,1},false});
     }
 }
+void CityWorld::gather_dynamic_draw_boxes(std::vector<Box>&out)const{
+    out.clear();
+    if(out.capacity()<12)out.reserve(12);
+    append_dynamic_draw_boxes(out);
+}
 void CityWorld::gather_draw_boxes(std::vector<Box>&out)const{
-    out.clear();out.reserve(streaming_stats_.resident_boxes+12);
-    for(const WorldChunk&c:active_chunks_)out.insert(out.end(),c.high_detail_boxes.begin(),c.high_detail_boxes.end());
-    std::vector<Box> dynamic;gather_dynamic_draw_boxes(dynamic);out.insert(out.end(),dynamic.begin(),dynamic.end());
+    out.clear();
+    const std::size_t required=streaming_stats_.resident_boxes+12;
+    if(out.capacity()<required)out.reserve(required);
+    for(const WorldChunk&c:active_chunks_)
+        out.insert(out.end(),c.high_detail_boxes.begin(),c.high_detail_boxes.end());
+    append_dynamic_draw_boxes(out);
 }
 bool CityWorld::player_intersects_building()const noexcept{return collides_with_building(player_position_);}
 } // namespace global_engine
