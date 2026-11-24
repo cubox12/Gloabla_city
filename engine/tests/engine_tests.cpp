@@ -63,7 +63,7 @@ int main(){
 
     std::vector<global_engine::Box> dynamic;
     world.gather_dynamic_draw_boxes(dynamic);
-    assert(dynamic.size()==51);
+    assert(dynamic.size()==64);
     for(int i=0;i<120;++i)world.update(1.0f/60.0f,{1,0});
     assert(world.player_position().x>5.0f);
     assert(!world.player_intersects_building());
@@ -82,7 +82,7 @@ int main(){
     assert(world.mission_target().x==160.0f&&world.mission_target().z==-64.0f);
     std::vector<global_engine::Box> carrying;
     world.gather_dynamic_draw_boxes(carrying);
-    assert(carrying.size()==52);
+    assert(carrying.size()==65);
     for(int i=0;i<5000&&!world.mission_completed();++i){
         const auto&p=world.player_position();
         if(p.z>-64.0f+1.0f)world.update(1.0f/60.0f,{0.0f,-1.0f});
