@@ -93,19 +93,47 @@ bool GlesRenderer::initialize(){
         "vec3 grade=mix(contrast,contrast*vec3(1.04,1.02,0.96),0.28);"
         "vec3 sky=vec3(0.55,0.72,0.82);"
         "outColor=vec4(mix(grade,sky,fog),vColor.a);}\n";
-    GLuint v=compile(GL_VERTEX_SHADER,vs),f=compile(GL_FRAGMENT_SHADER,fs);
-    if(!v||!f){if(v)glDeleteShader(v);if(f)glDeleteShader(f);return false;}
-    program_=glCreateProgram();glAttachShader(program_,v);glAttachShader(program_,f);
+    glClearColor(0.55f,0.72f,0.82f,1.0f);
+    GLuint v=compile(GL_VERTEX_SHADER,vs);
+    if(!v){__android_log_print(ANDROID_LOG_ERROR,"GlobalEngine","Vertex shader compilation failed");return false;}
+    GLuint f=compile(GL_FRAGMENT_SHADER,fs);
+    if(!f){
+        // Keep a deliberately simple GLES 3 fallback for drivers that reject optional fog/color grading.
+        static constexpr char fallback_fs[]=
+            "#version 300 es\\nprecision mediump float;in vec4 vColor;"
+            "out vec4 outColor;void main(){outColor=vColor;}\\n";
+        __android_log_print(ANDROID_LOG_WARN,"GlobalEngine","Using simple fragment shader fallback");
+        f=compile(GL_FRAGMENT_SHADER,fallback_fs);
+    }
+    if(!f){glDeleteShader(v);__android_log_print(ANDROID_LOG_ERROR,"GlobalEngine","No usable fragment shader");return false;}
+    program_=glCreateProgram();
+    if(!program_){glDeleteShader(v);glDeleteShader(f);return false;}
+    glAttachShader(program_,v);glAttachShader(program_,f);
     glLinkProgram(program_);glDeleteShader(v);glDeleteShader(f);
     GLint linked=0;glGetProgramiv(program_,GL_LINK_STATUS,&linked);
-    if(linked!=GL_TRUE){glDeleteProgram(program_);program_=0;return false;}
+    if(linked!=GL_TRUE){
+        GLint log_size=0;glGetProgramiv(program_,GL_INFO_LOG_LENGTH,&log_size);
+        std::string link_log(static_cast<std::size_t>(std::max(1,log_size)),'\\0');
+        glGetProgramInfoLog(program_,log_size,nullptr,link_log.data());
+        __android_log_print(ANDROID_LOG_ERROR,"GlobalEngine","Program link failed: %s",link_log.c_str());
+        glDeleteProgram(program_);program_=0;return false;
+    }
     mvp_location_=glGetUniformLocation(program_,"uMVP");
     view_location_=glGetUniformLocation(program_,"uView");
     glGenBuffers(1,&dynamic_vertex_buffer_);glGenBuffers(1,&hud_vertex_buffer_);glGenBuffers(1,&control_vertex_buffer_);
     glEnable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-    glClearColor(.55f,.72f,.82f,1);
-    return dynamic_vertex_buffer_!=0&&hud_vertex_buffer_!=0&&control_vertex_buffer_!=0&&mvp_location_>=0&&view_location_>=0;
+    const GLenum error=glGetError();
+    if(dynamic_vertex_buffer_==0||hud_vertex_buffer_==0||control_vertex_buffer_==0||
+       mvp_location_<0||view_location_<0||error!=GL_NO_ERROR){
+        __android_log_print(ANDROID_LOG_ERROR,"GlobalEngine",
+            "Renderer resource setup failed: buffers=%u/%u/%u uniforms=%d/%d glError=0x%x",
+            dynamic_vertex_buffer_,hud_vertex_buffer_,control_vertex_buffer_,
+            mvp_location_,view_location_,static_cast<unsigned>(error));
+        return false;
+    }
+    __android_log_print(ANDROID_LOG_INFO,"GlobalEngine","GLES renderer initialized successfully");
+    return true;
 }
 void GlesRenderer::resize(int w,int h){
     width_=w>0?w:1;height_=h>0?h:1;glViewport(0,0,width_,height_);
