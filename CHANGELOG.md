@@ -1,6 +1,6 @@
 # Changelog
 
-## GLOBAL ENGINE 0.1 — núcleo experimental
+## GLOBAL CITY-BETA 0.1 — motor nativo experimental
 
 - Introduce un motor C++17 independiente, separado de la implementación anterior en Godot.
 - Añade un mundo procedural de 16 edificios, geometría de ciudad, jugador y colisión AABB.
