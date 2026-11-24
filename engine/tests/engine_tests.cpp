@@ -33,6 +33,10 @@ int main(){
         world.update(1.0f/60.0f,{1.0f,-0.0625f});
     assert(world.mission_stage()==global_engine::MissionStage::DeliverPackage);
     assert(!world.mission_completed());
+    assert(world.mission_target().x==160.0f&&world.mission_target().z==-64.0f);
+    std::vector<global_engine::Box> carrying;
+    world.gather_dynamic_draw_boxes(carrying);
+    assert(carrying.size()==52);
     for(int i=0;i<5000&&!world.mission_completed();++i){
         const auto&p=world.player_position();
         if(p.z>-64.0f+1.0f)world.update(1.0f/60.0f,{0.0f,-1.0f});
@@ -45,7 +49,7 @@ int main(){
 
     std::vector<global_engine::Box> all;
     world.gather_draw_boxes(all);
-    assert(all.size()==world.static_box_count()+52);
+    assert(all.size()==world.static_box_count()+51);
     std::cout<<"GLOBAL ENGINE CORE: PASS chunks="<<world.streaming_stats().active_chunks
         <<" buildings="<<world.building_count()<<" resident_boxes="<<world.static_box_count()
         <<" mission=delivered dynamic_boxes="<<dynamic.size()<<'\n';
