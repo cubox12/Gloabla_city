@@ -14,6 +14,7 @@
 #include <unordered_map>
 
 #define GE_LOG(...) __android_log_print(ANDROID_LOG_ERROR,"GlobalEngine",__VA_ARGS__)
+#define GE_INFO(...) __android_log_print(ANDROID_LOG_INFO,"GlobalEngine",__VA_ARGS__)
 namespace {
 using namespace global_engine;
 using namespace global_engine::platform;
@@ -104,33 +105,66 @@ void destroy_egl(State& s) {
     s.display=EGL_NO_DISPLAY;s.surface=EGL_NO_SURFACE;s.context=EGL_NO_CONTEXT;
 }
 bool init_egl(State& s,ANativeWindow* window) {
+    GE_INFO("Initializing EGL for native window");
     s.display=eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    if(s.display==EGL_NO_DISPLAY||eglInitialize(s.display,nullptr,nullptr)!=EGL_TRUE)return false;
+    if(s.display==EGL_NO_DISPLAY){GE_LOG("eglGetDisplay failed: 0x%x",eglGetError());return false;}
+    EGLint egl_major=0,egl_minor=0;
+    if(eglInitialize(s.display,&egl_major,&egl_minor)!=EGL_TRUE){
+        GE_LOG("eglInitialize failed: 0x%x",eglGetError());return false;
+    }
+    GE_INFO("EGL initialized: %d.%d",egl_major,egl_minor);
 #ifndef EGL_OPENGL_ES3_BIT_KHR
 #define EGL_OPENGL_ES3_BIT_KHR 0x0040
 #endif
     const EGLint attrs[]={EGL_RENDERABLE_TYPE,EGL_OPENGL_ES3_BIT_KHR,EGL_SURFACE_TYPE,EGL_WINDOW_BIT,
         EGL_RED_SIZE,8,EGL_GREEN_SIZE,8,EGL_BLUE_SIZE,8,EGL_DEPTH_SIZE,16,EGL_NONE};
     EGLConfig config{};EGLint count=0;
-    if(eglChooseConfig(s.display,attrs,&config,1,&count)!=EGL_TRUE||count==0)return false;
+    if(eglChooseConfig(s.display,attrs,&config,1,&count)!=EGL_TRUE||count==0){
+        GE_LOG("No EGL config supports ES3 + window + depth16: 0x%x",eglGetError());
+        const EGLint relaxed_attrs[]={EGL_RENDERABLE_TYPE,EGL_OPENGL_ES3_BIT_KHR,
+            EGL_SURFACE_TYPE,EGL_WINDOW_BIT,EGL_RED_SIZE,8,EGL_GREEN_SIZE,8,EGL_BLUE_SIZE,8,EGL_NONE};
+        if(eglChooseConfig(s.display,relaxed_attrs,&config,1,&count)!=EGL_TRUE||count==0){
+            GE_LOG("No compatible EGL ES3 window config: 0x%x",eglGetError());return false;
+        }
+        GE_INFO("Using relaxed EGL ES3 config without depth-buffer requirement");
+    }
     eglBindAPI(EGL_OPENGL_ES_API);
     EGLint visual=0;
     if(eglGetConfigAttrib(s.display,config,EGL_NATIVE_VISUAL_ID,&visual)==EGL_TRUE)
         ANativeWindow_setBuffersGeometry(window,0,0,visual);
     const EGLint ctx[]={EGL_CONTEXT_CLIENT_VERSION,3,EGL_NONE};
-    s.context=eglCreateContext(s.display,config,EGL_NO_CONTEXT,ctx);
+        s.context=eglCreateContext(s.display,config,EGL_NO_CONTEXT,ctx);
+    if(s.context==EGL_NO_CONTEXT){GE_LOG("eglCreateContext ES3 failed: 0x%x",eglGetError());return false;}
     s.surface=eglCreateWindowSurface(s.display,config,window,nullptr);
-    if(s.context==EGL_NO_CONTEXT||s.surface==EGL_NO_SURFACE||
-       eglMakeCurrent(s.display,s.surface,s.surface,s.context)!=EGL_TRUE)return false;
+    if(s.surface==EGL_NO_SURFACE){GE_LOG("eglCreateWindowSurface failed: 0x%x",eglGetError());return false;}
+    if(eglMakeCurrent(s.display,s.surface,s.surface,s.context)!=EGL_TRUE){
+        GE_LOG("eglMakeCurrent failed: 0x%x",eglGetError());return false;
+    }
+    (void)eglSwapInterval(s.display,1);
     s.width=ANativeWindow_getWidth(window);s.height=ANativeWindow_getHeight(window);
-    s.renderer.resize(s.width,s.height);s.ready=s.renderer.initialize();
-    if(s.ready)(void)s.audio.initialize();
-    s.last=std::chrono::steady_clock::now();return s.ready;
+    s.renderer.resize(s.width,s.height);
+    s.ready=s.renderer.initialize();
+    if(!s.ready){
+        GE_LOG("Renderer initialization failed; keeping EGL alive for visible fallback diagnostics");
+        glViewport(0,0,s.width,s.height);
+        glClearColor(0.30f,0.43f,0.52f,1.0f);
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        (void)eglSwapBuffers(s.display,s.surface);
+    }else{
+        const char* vendor=reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+        const char* renderer=reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+        const char* version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
+        GE_INFO("GLES ready: vendor=%s renderer=%s version=%s",
+            vendor?vendor:"?",renderer?renderer:"?",version?version:"?");
+        (void)s.audio.initialize();
+    }
+    s.last=std::chrono::steady_clock::now();
+    return true;
 }
 void command(android_app* app,int32_t cmd) {
     auto* s=static_cast<State*>(app->userData);if(!s)return;
     if(cmd==APP_CMD_INIT_WINDOW&&app->window){
-        if(!init_egl(*s,app->window))destroy_egl(*s);
+        if(!init_egl(*s,app->window)){GE_LOG("EGL initialization failed; releasing partial state");destroy_egl(*s);}
     } else if(cmd==APP_CMD_TERM_WINDOW)destroy_egl(*s);
     else if(cmd==APP_CMD_WINDOW_RESIZED&&app->window&&s->display!=EGL_NO_DISPLAY){
         s->width=ANativeWindow_getWidth(app->window);s->height=ANativeWindow_getHeight(app->window);
@@ -204,7 +238,8 @@ int32_t input(android_app* app,AInputEvent* e) {
 }
 } // namespace
 
-void android_main(android_app* app) {
+extern "C" void android_main(android_app* app) {
+    GE_INFO("GLOBAL CITY-BETA 0.1 native entry point reached");
     State s;app->userData=&s;app->onAppCmd=command;app->onInputEvent=input;
     s.last=std::chrono::steady_clock::now();
     while(true){
@@ -230,10 +265,21 @@ void android_main(android_app* app) {
             }else s.step_elapsed=0.0f;
             s.renderer.render(s.world,s.camera);
             if(eglSwapBuffers(s.display,s.surface)!=EGL_TRUE){
-                const EGLint err=eglGetError();GE_LOG("eglSwapBuffers: 0x%x",err);
-                if(err==EGL_BAD_SURFACE||err==EGL_CONTEXT_LOST)destroy_egl(s);
+                const EGLint err=eglGetError();GE_LOG("eglSwapBuffers failed: 0x%x",err);
+                if((err==EGL_BAD_SURFACE||err==EGL_CONTEXT_LOST)&&app->window){
+                    destroy_egl(s);
+                    if(!init_egl(s,app->window))GE_LOG("EGL recovery failed");
+                }
             }
         } else {
+            // Keep the native window visibly alive when shader/GPU initialization fails.
+            // A black screen used to hide the actual initialization error from users.
+            if(s.display!=EGL_NO_DISPLAY&&s.surface!=EGL_NO_SURFACE&&s.context!=EGL_NO_CONTEXT){
+                glViewport(0,0,s.width,s.height);
+                glClearColor(0.30f,0.43f,0.52f,1.0f);
+                glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+                (void)eglSwapBuffers(s.display,s.surface);
+            }
             (void)ALooper_pollOnce(16,nullptr,&events,reinterpret_cast<void**>(&source));
             if(source)source->process(app,source);
         }
