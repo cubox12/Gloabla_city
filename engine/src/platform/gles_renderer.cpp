@@ -1,4 +1,5 @@
 #include "gles_renderer.hpp"
+#include "global_engine/touch_controls.hpp"
 #include <android/log.h>
 #include <algorithm>
 #include <array>
@@ -82,16 +83,18 @@ bool GlesRenderer::initialize(){
     static constexpr char vs[]=
         "#version 300 es\n"
         "layout(location=0) in vec3 aPosition;layout(location=1) in vec4 aColor;"
-        "uniform mat4 uMVP;uniform mat4 uView;out vec4 vColor;out float vFogDepth;"
+        "uniform mat4 uMVP;uniform mat4 uView;out vec4 vColor;out float vFogDepth;out float vWorldHeight;"
         "void main(){vec4 p=vec4(aPosition,1.0);gl_Position=uMVP*p;"
-        "vColor=aColor;vFogDepth=length((uView*p).xyz); }\n";
+        "vColor=aColor;vFogDepth=length((uView*p).xyz);vWorldHeight=aPosition.y;}\n";
     static constexpr char fs[]=
-        "#version 300 es\nprecision mediump float;in vec4 vColor;in float vFogDepth;"
-        "out vec4 outColor;void main(){float fog=smoothstep(145.0,265.0,vFogDepth);"
-        "vec3 lit=pow(max(vColor.rgb,vec3(0.0)),vec3(0.94));"
-        "float contrast=(lit-vec3(0.5))*1.08+vec3(0.5);"
-        "vec3 grade=mix(contrast,contrast*vec3(1.04,1.02,0.96),0.28);"
-        "vec3 sky=vec3(0.55,0.72,0.82);"
+        "#version 300 es\nprecision mediump float;in vec4 vColor;in float vFogDepth;in float vWorldHeight;"
+        "out vec4 outColor;void main(){float fog=smoothstep(158.0,278.0,vFogDepth);"
+        "float sun=0.96+0.07*smoothstep(0.0,48.0,vWorldHeight);"
+        "vec3 lit=pow(max(vColor.rgb,vec3(0.0)),vec3(0.91))*sun;"
+        "vec3 warm=lit*vec3(1.055,1.025,0.985);"
+        "vec3 grade=(mix(lit,warm,0.42)-vec3(0.5))*1.12+vec3(0.5);"
+        "vec3 skyNear=vec3(0.67,0.80,0.89);vec3 skyFar=vec3(0.36,0.57,0.72);"
+        "vec3 sky=mix(skyNear,skyFar,clamp((vFogDepth-145.0)/270.0,0.0,1.0));"
         "outColor=vec4(mix(grade,sky,fog),vColor.a);}\n";
     glClearColor(0.55f,0.72f,0.82f,1.0f);
     gpu_chunks_.reserve(25);
@@ -247,14 +250,23 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
             add_control_vertex(cx+std::cos(a1)*radius,cy+std::sin(a1)*radius,color);
         }
     };
-    const float base_x=camera.joystick_active?camera.joystick_x:static_cast<float>(width_)*0.18f;
-    const float base_y=camera.joystick_active?camera.joystick_y:static_cast<float>(height_)*0.79f;
-    const float radius=std::max(34.0f,std::min(58.0f,static_cast<float>(std::min(width_,height_))*0.105f));
-    disk(base_x,base_y,radius,{0.025f,0.07f,0.09f,0.34f});
-    disk(base_x,base_y,radius*0.82f,{0.24f,0.48f,0.54f,0.18f});
-    const float knob_x=base_x+camera.move_x*radius*0.66f;
-    const float knob_y=base_y-camera.move_y*radius*0.66f;
-    disk(knob_x,knob_y,radius*0.39f,{0.68f,0.88f,0.91f,0.72f});
+    const VirtualStickLayout stick=virtual_stick_layout(width_,height_);
+    const float base_x=stick.center_x;
+    const float base_y=stick.center_y;
+    const float radius=stick.radius;
+    const float active=camera.joystick_active?1.0f:0.0f;
+    // Large fixed-base pad with a bright rim, recessed track and raised thumb cap.
+    disk(base_x,base_y+radius*0.055f,radius*1.14f,{0.005f,0.018f,0.026f,0.25f});
+    disk(base_x,base_y,radius*1.06f,{0.53f,0.76f,0.82f,0.16f+0.12f*active});
+    disk(base_x,base_y,radius*0.96f,{0.012f,0.045f,0.060f,0.64f});
+    disk(base_x,base_y,radius*0.77f,{0.14f,0.31f,0.37f,0.40f});
+    disk(base_x,base_y,radius*0.58f,{0.055f,0.13f,0.17f,0.22f});
+    const float knob_x=base_x+camera.stick_knob_x*radius*0.66f;
+    const float knob_y=base_y+camera.stick_knob_y*radius*0.66f;
+    disk(knob_x,knob_y+radius*0.045f,radius*0.45f,{0.0f,0.015f,0.022f,0.36f});
+    disk(knob_x,knob_y,radius*0.405f,{0.70f,0.88f,0.92f,0.74f+0.18f*active});
+    disk(knob_x,knob_y-radius*0.035f,radius*0.31f,{0.24f,0.47f,0.53f,0.72f});
+    disk(knob_x-radius*0.06f,knob_y-radius*0.095f,radius*0.075f,{0.88f,0.96f,0.98f,0.52f});
     // A small camera hint on the right: drag anywhere on that half to orbit.
     const float cam_x=static_cast<float>(width_)*0.84f,cam_y=static_cast<float>(height_)*0.79f;
     disk(cam_x,cam_y,13.0f,{0.025f,0.07f,0.09f,0.20f});
