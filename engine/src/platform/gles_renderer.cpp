@@ -1,6 +1,8 @@
 #include "gles_renderer.hpp"
 #include <android/log.h>
+#include <algorithm>
 #include <array>
+#include <iterator>
 #include <cmath>
 #include <string>
 #include <vector>
