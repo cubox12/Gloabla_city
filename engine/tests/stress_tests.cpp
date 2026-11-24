@@ -22,7 +22,7 @@ int main(){
         agents.push_back({f*0.37f,f*0.19f,std::sin(f)*1.4f,std::cos(f)*1.4f});
     }
     std::vector<double> frame_ms;frame_ms.reserve(frames);
-    std::vector<global_engine::Box> dynamic_boxes;dynamic_boxes.reserve(52);
+    std::vector<global_engine::Box> dynamic_boxes;dynamic_boxes.reserve(66);
     std::vector<global_engine::Box> render_boxes;render_boxes.reserve(17000);
     std::size_t peak_chunks=0,peak_boxes=0,peak_gpu_boxes=0;
     for(int frame=0;frame<frames;++frame){
