@@ -218,7 +218,6 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         const Color facade=facades[seed%5U];
         const Color base_color{facade.r*0.88f,facade.g*0.88f,facade.b*0.88f,1};
         const Color trim{0.82f,0.79f,0.72f,1};
-        const Color frame{0.20f,0.23f,0.24f,1};
         const Color glass{0.11f,0.25f,0.31f,1};
         const Color warm_glass{0.46f,0.36f,0.22f,1};
 
