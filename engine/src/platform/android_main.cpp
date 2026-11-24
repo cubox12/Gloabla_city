@@ -12,6 +12,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <unordered_map>
 
 #define GE_LOG(...) __android_log_print(ANDROID_LOG_ERROR,"GlobalEngine",__VA_ARGS__)
