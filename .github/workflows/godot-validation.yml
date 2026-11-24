@@ -54,7 +54,7 @@ jobs:
       - name: Build native engine core
         run: cmake --build build-engine --parallel 2
       - name: Test native engine core
-        run: ctest --test-dir build-engine --output-on-failure
+        run: ctest --test-dir build-engine --output-on-failure --verbose
 
   android-debug:
     name: GLOBAL ENGINE Android arm64 APK compile
