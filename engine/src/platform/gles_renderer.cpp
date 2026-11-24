@@ -98,11 +98,11 @@ bool GlesRenderer::initialize(){
     if(linked!=GL_TRUE){glDeleteProgram(program_);program_=0;return false;}
     mvp_location_=glGetUniformLocation(program_,"uMVP");
     view_location_=glGetUniformLocation(program_,"uView");
-    glGenBuffers(1,&dynamic_vertex_buffer_);glGenBuffers(1,&hud_vertex_buffer_);
+    glGenBuffers(1,&dynamic_vertex_buffer_);glGenBuffers(1,&hud_vertex_buffer_);glGenBuffers(1,&control_vertex_buffer_);
     glEnable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glClearColor(.48f,.66f,.74f,1);
-    return dynamic_vertex_buffer_!=0&&hud_vertex_buffer_!=0&&mvp_location_>=0&&view_location_>=0;
+    return dynamic_vertex_buffer_!=0&&hud_vertex_buffer_!=0&&control_vertex_buffer_!=0&&mvp_location_>=0&&view_location_>=0;
 }
 void GlesRenderer::resize(int w,int h){
     width_=w>0?w:1;height_=h>0?h:1;glViewport(0,0,width_,height_);
@@ -121,7 +121,7 @@ void GlesRenderer::upload_chunk(const WorldChunk&src,GpuChunk&dst){
     upload(src.high_detail_boxes,dst.high_buffer,dst.high_count);
     upload(src.low_detail_boxes,dst.low_buffer,dst.low_count);
 }
-void GlesRenderer::draw_hud(const CityWorld&world){
+void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
     const int distance=std::max(0,static_cast<int>(world.mission_distance()+0.5f));
     const bool complete=world.mission_completed();
     if(hud_cached_width_!=width_||hud_cached_height_!=height_||
@@ -166,7 +166,7 @@ void GlesRenderer::draw_hud(const CityWorld&world){
         draw_text(complete?"GLOBAL CITY MISION 01":"MISION 01 PRIMER REPARTO",27,24,white);
         draw_text(complete?"VEHICULO LOCALIZADO":"VE AL COCHE AZUL",27,51,white);
         draw_text(complete?"MISION COMPLETADA":distance_line,27,78,white);
-        draw_text("IZQ MOVER  DER MIRAR",27,105,muted);
+        draw_text("IZQ JOYSTICK  DER CAMARA",27,105,muted);
         hud_cached_width_=width_;hud_cached_height_=height_;
         hud_cached_distance_=distance;hud_cached_complete_=complete;
         hud_vertex_count_=static_cast<GLsizei>(hud_vertices_.size()/7U);
@@ -181,6 +181,43 @@ void GlesRenderer::draw_hud(const CityWorld&world){
     glUniformMatrix4fv(view_location_,1,GL_FALSE,hud_matrix.v.data());
     glBindBuffer(GL_ARRAY_BUFFER,hud_vertex_buffer_);attributes();
     if(hud_vertex_count_>0)glDrawArrays(GL_TRIANGLES,0,hud_vertex_count_);
+
+    // Fixed-position virtual stick on the left; right half remains a free-look drag area.
+    control_vertices_.clear();
+    control_vertices_.reserve(32U*3U*7U*2U+32U*6U*7U);
+    auto add_control_vertex=[&](float px,float py,const Color&color){
+        const float x=2.0f*px/static_cast<float>(width_)-1.0f;
+        const float y=1.0f-2.0f*py/static_cast<float>(height_);
+        control_vertices_.insert(control_vertices_.end(),{x,y,0.0f,color.r,color.g,color.b,color.a});
+    };
+    auto disk=[&](float cx,float cy,float radius,const Color&color){
+        constexpr int segments=32;
+        for(int i=0;i<segments;++i){
+            const float a0=6.28318530718f*static_cast<float>(i)/segments;
+            const float a1=6.28318530718f*static_cast<float>(i+1)/segments;
+            add_control_vertex(cx,cy,color);
+            add_control_vertex(cx+std::cos(a0)*radius,cy+std::sin(a0)*radius,color);
+            add_control_vertex(cx+std::cos(a1)*radius,cy+std::sin(a1)*radius,color);
+        }
+    };
+    const float base_x=camera.joystick_active?camera.joystick_x:static_cast<float>(width_)*0.18f;
+    const float base_y=camera.joystick_active?camera.joystick_y:static_cast<float>(height_)*0.79f;
+    const float radius=std::max(34.0f,std::min(58.0f,static_cast<float>(std::min(width_,height_))*0.105f));
+    disk(base_x,base_y,radius,{0.025f,0.07f,0.09f,0.34f});
+    disk(base_x,base_y,radius*0.82f,{0.24f,0.48f,0.54f,0.18f});
+    const float knob_x=base_x+camera.move_x*radius*0.66f;
+    const float knob_y=base_y-camera.move_y*radius*0.66f;
+    disk(knob_x,knob_y,radius*0.39f,{0.68f,0.88f,0.91f,0.72f});
+    // A small camera hint on the right: drag anywhere on that half to orbit.
+    const float cam_x=static_cast<float>(width_)*0.84f,cam_y=static_cast<float>(height_)*0.79f;
+    disk(cam_x,cam_y,13.0f,{0.025f,0.07f,0.09f,0.20f});
+    disk(cam_x,cam_y,5.0f,{0.78f,0.91f,0.94f,0.38f});
+    glBindBuffer(GL_ARRAY_BUFFER,control_vertex_buffer_);
+    glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(control_vertices_.size()*sizeof(float)),
+        control_vertices_.data(),GL_STREAM_DRAW);
+    attributes();
+    if(!control_vertices_.empty())
+        glDrawArrays(GL_TRIANGLES,0,static_cast<GLsizei>(control_vertices_.size()/7U));
     glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);
 }
 void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
@@ -235,7 +272,7 @@ void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
     attributes();
     const GLsizei dynamic_count=static_cast<GLsizei>(dynamic_vertices_.size()/7U);
     if(dynamic_count>0)glDrawArrays(GL_TRIANGLES,0,dynamic_count);
-    draw_hud(world);
+    draw_hud(world,camera);
 }
 void GlesRenderer::shutdown(){
     for(GpuChunk&c:gpu_chunks_){
@@ -244,11 +281,11 @@ void GlesRenderer::shutdown(){
     }
     gpu_chunks_.clear();
     if(dynamic_vertex_buffer_)glDeleteBuffers(1,&dynamic_vertex_buffer_);
-    if(hud_vertex_buffer_)glDeleteBuffers(1,&hud_vertex_buffer_);
+    if(hud_vertex_buffer_)glDeleteBuffers(1,&hud_vertex_buffer_);\n    if(control_vertex_buffer_)glDeleteBuffers(1,&control_vertex_buffer_);
     if(program_)glDeleteProgram(program_);
-    dynamic_vertex_buffer_=0;hud_vertex_buffer_=0;program_=0;
+    dynamic_vertex_buffer_=0;hud_vertex_buffer_=0;control_vertex_buffer_=0;program_=0;
     mvp_location_=-1;view_location_=-1;dynamic_boxes_.clear();
-    dynamic_vertices_.clear();hud_vertices_.clear();hud_vertex_count_=0;
+    dynamic_vertices_.clear();hud_vertices_.clear();control_vertices_.clear();hud_vertex_count_=0;
     hud_cached_width_=0;hud_cached_height_=0;hud_cached_distance_=-1;
 }
 } // namespace global_engine::platform
