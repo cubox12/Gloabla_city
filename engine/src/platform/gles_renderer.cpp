@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <iterator>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace global_engine::platform {
@@ -127,16 +128,17 @@ void append_soft_box(std::vector<float>&out,const Box&b){
     const float bevel=std::min({h.x,h.y,h.z})*0.085f;
     const Vec3 inner{std::max(0.001f,h.x-bevel),std::max(0.001f,h.y-bevel),
         std::max(0.001f,h.z-bevel)};
-    const std::array<float,5> u{{-1.0f,-inner.x/h.x,0.0f,inner.x/h.x,1.0f}};
-    const std::array<float,5> v{{-1.0f,-inner.y/h.y,0.0f,inner.y/h.y,1.0f}};
-    auto face_point=[&](int face,float a,float c){
+    const std::array<float,5> gx{{-1.0f,-inner.x/h.x,0.0f,inner.x/h.x,1.0f}};
+    const std::array<float,5> gy{{-1.0f,-inner.y/h.y,0.0f,inner.y/h.y,1.0f}};
+    const std::array<float,5> gz{{-1.0f,-inner.z/h.z,0.0f,inner.z/h.z,1.0f}};
+    auto face_point=[&](int face,int row,int col){
         switch(face){
-            case 0:return Vec3{ h.x,a*h.y,c*h.z};
-            case 1:return Vec3{-h.x,a*h.y,-c*h.z};
-            case 2:return Vec3{a*h.x,h.y,c*h.z};
-            case 3:return Vec3{-a*h.x,-h.y,c*h.z};
-            case 4:return Vec3{a*h.x,c*h.y,h.z};
-            default:return Vec3{-a*h.x,c*h.y,-h.z};
+            case 0:return Vec3{ h.x,gy[row]*h.y,gz[col]*h.z};
+            case 1:return Vec3{-h.x,gy[row]*h.y,-gz[col]*h.z};
+            case 2:return Vec3{gx[col]*h.x,h.y,gz[row]*h.z};
+            case 3:return Vec3{-gx[col]*h.x,-h.y,gz[row]*h.z};
+            case 4:return Vec3{gx[col]*h.x,gy[row]*h.y,h.z};
+            default:return Vec3{-gx[col]*h.x,gy[row]*h.y,-h.z};
         }
     };
     auto rounded=[&](const Vec3&p,const Vec3&fallback){
@@ -150,10 +152,10 @@ void append_soft_box(std::vector<float>&out,const Box&b){
     const std::array<Vec3,6> normals{{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}};
     for(int face=0;face<6;++face){
         for(int row=0;row<4;++row)for(int col=0;col<4;++col){
-            const auto p00=rounded(face_point(face,u[col],v[row]),normals[face]);
-            const auto p10=rounded(face_point(face,u[col+1],v[row]),normals[face]);
-            const auto p11=rounded(face_point(face,u[col+1],v[row+1]),normals[face]);
-            const auto p01=rounded(face_point(face,u[col],v[row+1]),normals[face]);
+            const auto p00=rounded(face_point(face,row,col),normals[face]);
+            const auto p10=rounded(face_point(face,row,col+1),normals[face]);
+            const auto p11=rounded(face,row+1,col+1,normals[face]);
+            const auto p01=rounded(face_point(face,row+1,col),normals[face]);
             append_lit_vertex(out,p00.first,p00.second,b.color);
             append_lit_vertex(out,p10.first,p10.second,b.color);
             append_lit_vertex(out,p11.first,p11.second,b.color);
@@ -175,6 +177,15 @@ void append_box(std::vector<float>&out,const Box&b){
         const Vec3&v=p[f[face][j]];float k=light[face];
         out.insert(out.end(),{v.x,v.y,v.z,b.color.r*k,b.color.g*k,b.color.b*k,b.color.a});
     }
+}
+std::size_t geometry_vertex_count(const Box&box){
+    switch(box.shape){
+        case GeometryShape::Ellipsoid:return 240U;
+        case GeometryShape::Cylinder:return 96U;
+        case GeometryShape::SoftBox:return 576U;
+        case GeometryShape::Box:return 36U;
+    }
+    return 36U;
 }
 void attributes(){
     constexpr GLsizei stride=static_cast<GLsizei>(7U*sizeof(float));
@@ -279,7 +290,9 @@ void GlesRenderer::upload_chunk(const WorldChunk&src,GpuChunk&dst,bool high_deta
     GLuint&buffer=high_detail?dst.high_buffer:dst.low_buffer;
     GLsizei&count=high_detail?dst.high_count:dst.low_count;
     std::vector<float>vertices;
-    vertices.reserve(boxes.size()*36U*7U);
+    std::size_t required_vertices=0;
+    for(const Box&box:boxes)required_vertices+=geometry_vertex_count(box);
+    vertices.reserve(required_vertices*7U);
     for(const Box&b:boxes)append_box(vertices,b);
     if(!buffer)glGenBuffers(1,&buffer);
     if(!buffer){count=0;return;}
@@ -502,7 +515,9 @@ void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
     }
 
     world.gather_dynamic_draw_boxes(dynamic_boxes_);dynamic_vertices_.clear();
-    const std::size_t required=dynamic_boxes_.size()*36U*7U;
+    std::size_t required_vertices=0;
+    for(const Box&box:dynamic_boxes_)required_vertices+=geometry_vertex_count(box);
+    const std::size_t required=required_vertices*7U;
     if(dynamic_vertices_.capacity()<required)dynamic_vertices_.reserve(required);
     for(const Box&b:dynamic_boxes_)append_box(dynamic_vertices_,b);
     glBindBuffer(GL_ARRAY_BUFFER,dynamic_vertex_buffer_);

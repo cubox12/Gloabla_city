@@ -9,6 +9,16 @@
 
 namespace {
 struct Agent { float x,z,vx,vz; };
+std::size_t vertex_count(const global_engine::Box&box){
+    using global_engine::GeometryShape;
+    switch(box.shape){
+        case GeometryShape::Ellipsoid:return 240U;
+        case GeometryShape::Cylinder:return 96U;
+        case GeometryShape::SoftBox:return 576U;
+        case GeometryShape::Box:return 36U;
+    }
+    return 36U;
+}
 }
 int main(){
     using clock=std::chrono::steady_clock;
@@ -24,7 +34,7 @@ int main(){
     std::vector<double> frame_ms;frame_ms.reserve(frames);
     std::vector<global_engine::Box> dynamic_boxes;dynamic_boxes.reserve(132);
     std::vector<global_engine::Box> render_boxes;render_boxes.reserve(19000);
-    std::size_t peak_chunks=0,peak_boxes=0,peak_gpu_boxes=0;
+    std::size_t peak_chunks=0,peak_boxes=0,peak_gpu_boxes=0,peak_gpu_vertices=0;
     for(int frame=0;frame<frames;++frame){
         const auto begin=clock::now();
         world.update(dt,{1.0f,0.0f});
@@ -35,12 +45,14 @@ int main(){
         }
         // Simulate CPU draw-list assembly for the resident city plus a dense crowd.
         render_boxes.clear();
-        std::size_t static_gpu_boxes=0;
+        std::size_t static_gpu_boxes=0,static_gpu_vertices=0;
         for(const auto&chunk:world.active_chunks()){
             render_boxes.insert(render_boxes.end(),chunk.high_detail_boxes.begin(),chunk.high_detail_boxes.end());
             // The renderer uploads high and low LOD into separate GPU buffers.
             // Count both: low LOD is a subset, but is still duplicated in VRAM.
             static_gpu_boxes+=chunk.high_detail_boxes.size()+chunk.low_detail_boxes.size();
+            for(const auto&box:chunk.high_detail_boxes)static_gpu_vertices+=vertex_count(box);
+            for(const auto&box:chunk.low_detail_boxes)static_gpu_vertices+=vertex_count(box);
         }
         world.gather_dynamic_draw_boxes(dynamic_boxes);
         render_boxes.insert(render_boxes.end(),dynamic_boxes.begin(),dynamic_boxes.end());
@@ -53,6 +65,10 @@ int main(){
         peak_chunks=std::max(peak_chunks,s.active_chunks);
         peak_boxes=std::max(peak_boxes,s.resident_boxes);
         peak_gpu_boxes=std::max(peak_gpu_boxes,static_gpu_boxes+dynamic_boxes.size()+agents.size());
+        std::size_t dynamic_vertices=0;
+        for(const auto&box:dynamic_boxes)dynamic_vertices+=vertex_count(box);
+        const std::size_t total_gpu_vertices=static_gpu_vertices+dynamic_vertices+agents.size()*36U;
+        peak_gpu_vertices=std::max(peak_gpu_vertices,total_gpu_vertices);
         assert(s.active_chunks<=25);
         assert(s.resident_boxes<19000);
         assert(!world.player_intersects_building());
@@ -65,9 +81,9 @@ int main(){
     assert(s.generated_chunks>100);
     assert(s.evicted_chunks>0);
     assert(peak_chunks==25);
-    // Every box expands to 36 vertices × (position + RGBA) = 1008 bytes.
-    // This is a conservative CPU-side estimate of the current non-instanced VBO layout.
-    const std::size_t estimated_gpu_bytes=peak_gpu_boxes*36U*7U*sizeof(float);
+    // Count the exact non-instanced vertex output of each primitive and both resident LODs.
+    // Each vertex stores three position floats plus four color floats.
+    const std::size_t estimated_gpu_bytes=peak_gpu_vertices*7U*sizeof(float);
     assert(estimated_gpu_bytes<32U*1024U*1024U);
     assert(world.building_count()<=100);
     for(const Agent&a:agents)assert(std::isfinite(a.x)&&std::isfinite(a.z));
@@ -77,6 +93,7 @@ int main(){
              <<"chunk generated/evicted: "<<s.generated_chunks<<"/"<<s.evicted_chunks<<"\n"
              <<"peak resident chunks/high-detail boxes: "<<peak_chunks<<"/"<<peak_boxes<<"\n"
              <<"peak duplicated LOD + dynamic/crowd boxes: "<<peak_gpu_boxes<<"\n"
+             <<"peak generated vertices across both LODs: "<<peak_gpu_vertices<<"\n"
              <<"estimated non-instanced vertex memory: "<<(estimated_gpu_bytes/(1024.0*1024.0))<<" MiB\n"
              <<"CPU frame ms p50/p95/max: "<<p50<<"/"<<p95<<"/"<<worst<<"\n"
              <<"30 FPS CPU budget: 33.33 ms (host result; not Android GPU performance)\n";
