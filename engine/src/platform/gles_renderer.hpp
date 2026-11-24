@@ -31,6 +31,7 @@ private:
     std::vector<GpuChunk> gpu_chunks_;
     std::vector<Box> dynamic_boxes_;
     std::vector<float> dynamic_vertices_;
-    std::vector<float> hud_vertices_;\n    std::vector<float> control_vertices_;
+    std::vector<float> hud_vertices_;
+    std::vector<float> control_vertices_;
 };
 } // namespace global_engine::platform
