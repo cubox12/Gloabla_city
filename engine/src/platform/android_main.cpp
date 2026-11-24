@@ -1,4 +1,5 @@
 #include "gles_renderer.hpp"
+#include "global_engine/touch_controls.hpp"
 #include <android/input.h>
 #include <android/log.h>
 #include <android/native_window.h>
@@ -18,7 +19,7 @@
 namespace {
 using namespace global_engine;
 using namespace global_engine::platform;
-struct Touch { float x,y,ox,oy; bool joystick; };
+struct Touch { float x{0.0f},y{0.0f}; bool joystick{false},camera{false}; };
 struct AudioFeedback {
     SLObjectItf engine_object{nullptr},output_mix_object{nullptr},player_object{nullptr};
     SLEngineItf engine{nullptr};
@@ -54,17 +55,47 @@ struct AudioFeedback {
     }
     void play(int effect){
         if(!queue||!play_interface||busy.exchange(true))return;
-        const int frames=effect==2?4410:10584;
+        const int frames=effect==2?5292:(effect==1?22050:(effect==0?13230:3528));
         samples.resize(static_cast<std::size_t>(frames)*2U);
+        constexpr float two_pi=6.28318530718f;
+        float phase=0.0f;
+        constexpr float notes[4]={523.25f,659.25f,783.99f,1046.50f};
+        std::uint32_t noise_state=0x8f31a2d5U;
         for(int i=0;i<frames;++i){
             const float t=static_cast<float>(i)/44100.0f;
-            float frequency=effect==0?520.0f:effect==1?660.0f:145.0f;
-            if(effect==0&&t>0.075f)frequency=880.0f;
-            if(effect==1)frequency=t<0.08f?523.0f:(t<0.16f?659.0f:784.0f);
-            const float envelope=effect==2?std::max(0.0f,1.0f-static_cast<float>(i)/frames):
-                std::min(1.0f,static_cast<float>(i)/600.0f)*std::max(0.0f,1.0f-static_cast<float>(i)/frames);
-            const float wave=std::sin(6.28318530718f*frequency*t)*envelope*(effect==2?0.13f:0.19f);
-            const SLint16 sample=static_cast<SLint16>(wave*32767.0f);
+            const float progress=static_cast<float>(i)/static_cast<float>(frames);
+            float frequency=520.0f;
+            float envelope=0.0f;
+            float wave=0.0f;
+            if(effect==0){
+                // Package pickup: smooth rising two-tone chime.
+                frequency=430.0f+520.0f*progress;
+                envelope=std::min(1.0f,t/0.025f)*std::max(0.0f,1.0f-progress);
+                phase+=two_pi*frequency/44100.0f;
+                wave=std::sin(phase)+0.24f*std::sin(phase*2.01f);
+            }else if(effect==1){
+                // Delivery complete: four-note arpeggio with a soft harmonic tail.
+                const int note=std::min(3,static_cast<int>(t/0.125f));
+                frequency=notes[note];
+                envelope=std::min(1.0f,t/0.018f)*std::max(0.0f,1.0f-progress*0.92f);
+                phase+=two_pi*frequency/44100.0f;
+                wave=std::sin(phase)+0.18f*std::sin(phase*2.0f);
+            }else if(effect==2){
+                // Footstep: short low thump with a tiny deterministic noise transient.
+                envelope=std::exp(-t*25.0f);
+                phase+=two_pi*(112.0f-26.0f*progress)/44100.0f;
+                noise_state=noise_state*1664525U+1013904223U;
+                const float noise=(static_cast<float>((noise_state>>8U)&0xffffU)/32767.5f)-1.0f;
+                wave=0.82f*std::sin(phase)+0.18f*std::sin(phase*2.7f)+noise*0.12f*std::exp(-t*75.0f);
+            }else{
+                // Light UI tick reserved for future menu and interaction feedback.
+                frequency=1120.0f-370.0f*progress;
+                envelope=std::exp(-t*34.0f);
+                phase+=two_pi*frequency/44100.0f;
+                wave=std::sin(phase)+0.12f*std::sin(phase*2.0f);
+            }
+            const float gain=effect==2?0.12f:(effect==1?0.16f:0.15f);
+            const SLint16 sample=static_cast<SLint16>(std::max(-1.0f,std::min(1.0f,wave*envelope*gain))*32767.0f);
             samples[static_cast<std::size_t>(i)*2U]=sample;
             samples[static_cast<std::size_t>(i)*2U+1U]=sample;
         }
@@ -89,6 +120,7 @@ struct State {
     EGLContext context{EGL_NO_CONTEXT}; int width{1},height{1};
     bool ready{false};
     float step_elapsed{0.0f};
+    int joystick_pointer{-1};
     std::unordered_map<int,Touch> touches;
     std::chrono::steady_clock::time_point last;
 };
@@ -180,6 +212,23 @@ bool init_egl(State& s,ANativeWindow* window) {
     s.last=std::chrono::steady_clock::now();
     return true;
 }
+void reset_joystick(State& s) {
+    s.joystick_pointer=-1;
+    s.input.move_x=0.0f;s.input.move_z=0.0f;
+    s.camera.joystick_active=false;
+    s.camera.move_x=0.0f;s.camera.move_y=0.0f;
+    s.camera.stick_knob_x=0.0f;s.camera.stick_knob_y=0.0f;s.camera.stick_magnitude=0.0f;
+}
+void apply_joystick(State& s,float x,float y) {
+    const VirtualStickLayout layout=virtual_stick_layout(s.width,s.height);
+    const VirtualStickOutput value=map_virtual_stick(x,y,layout);
+    s.camera.joystick_active=true;
+    s.camera.joystick_x=layout.center_x;s.camera.joystick_y=layout.center_y;
+    s.camera.move_x=value.move_x;s.camera.move_y=value.move_z;
+    s.camera.stick_knob_x=value.knob_x;s.camera.stick_knob_y=value.knob_y;
+    s.camera.stick_magnitude=value.magnitude;
+    s.input.move_x=value.move_x;s.input.move_z=value.move_z;
+}
 void command(android_app* app,int32_t cmd) {
     auto* s=static_cast<State*>(app->userData);if(!s)return;
     if(cmd==APP_CMD_INIT_WINDOW&&app->window){
@@ -188,8 +237,11 @@ void command(android_app* app,int32_t cmd) {
     else if(cmd==APP_CMD_WINDOW_RESIZED&&app->window&&s->display!=EGL_NO_DISPLAY){
         s->width=ANativeWindow_getWidth(app->window);s->height=ANativeWindow_getHeight(app->window);
         s->renderer.resize(s->width,s->height);
-    } else if(cmd==APP_CMD_LOST_FOCUS){
-        s->input={};s->touches.clear();s->camera.joystick_active=false;s->camera.move_x=0;s->camera.move_y=0;
+    } else if(cmd==APP_CMD_LOST_FOCUS||cmd==APP_CMD_PAUSE){
+        s->touches.clear();reset_joystick(*s);s->input={};
+        s->last=std::chrono::steady_clock::now();
+    } else if(cmd==APP_CMD_RESUME){
+        s->last=std::chrono::steady_clock::now();
     }
 }
 void key_input(State& s,int key,bool down) {
@@ -214,11 +266,12 @@ int32_t input(android_app* app,AInputEvent* e) {
             AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
         const int id=AMotionEvent_getPointerId(e,i);
         const float x=AMotionEvent_getX(e,i),y=AMotionEvent_getY(e,i);
-        const bool joystick=x<static_cast<float>(s->width)*0.48f&&y>static_cast<float>(s->height)*0.45f;
-        s->touches[id]={x,y,x,y,joystick};
+        const bool joystick=s->joystick_pointer<0&&is_virtual_stick_touch(x,y,s->width,s->height);
+        const bool camera=!joystick&&x>=static_cast<float>(s->width)*0.44f;
+        s->touches[id]={x,y,joystick,camera};
         if(joystick){
-            s->camera.joystick_active=true;s->camera.joystick_x=x;s->camera.joystick_y=y;
-            s->camera.move_x=0;s->camera.move_y=0;s->input.move_x=0;s->input.move_z=0;
+            s->joystick_pointer=id;
+            apply_joystick(*s,x,y);
         }
         return 1;
     }
@@ -228,27 +281,25 @@ int32_t input(android_app* app,AInputEvent* e) {
             if(it==s->touches.end())continue;
             Touch& t=it->second;const float x=AMotionEvent_getX(e,i),y=AMotionEvent_getY(e,i);
             const float dx=x-t.x,dy=y-t.y;t.x=x;t.y=y;
-            if(t.joystick){
-                float mx=(x-t.ox)/64.0f,my=(t.oy-y)/64.0f;
-                const float length=std::sqrt(mx*mx+my*my);
-                if(length>1.0f){mx/=length;my/=length;}
-                s->input.move_x=mx;s->input.move_z=my;
-                s->camera.move_x=mx;s->camera.move_y=my;
-            } else {
-                s->camera.yaw-=dx*0.005f;
-                s->camera.pitch=std::max(0.18f,std::min(1.12f,s->camera.pitch-dy*0.0035f));
+            if(t.joystick&&id==s->joystick_pointer){
+                apply_joystick(*s,x,y);
+            }else if(t.camera){
+                s->camera.yaw-=dx*0.0044f;
+                s->camera.pitch=std::max(0.20f,std::min(1.10f,s->camera.pitch-dy*0.0032f));
             }
         }return 1;
     }
     if(mask==AMOTION_EVENT_ACTION_UP||mask==AMOTION_EVENT_ACTION_POINTER_UP||
        mask==AMOTION_EVENT_ACTION_CANCEL){
-        if(mask==AMOTION_EVENT_ACTION_CANCEL){s->touches.clear();s->input={};s->camera.joystick_active=false;s->camera.move_x=0;s->camera.move_y=0;}
-        else {
+        if(mask==AMOTION_EVENT_ACTION_CANCEL){
+            s->touches.clear();reset_joystick(*s);s->input={};
+        }else{
             const std::size_t i=static_cast<std::size_t>((action&AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)>>
                 AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT);
             if(i<n){
                 const int id=AMotionEvent_getPointerId(e,i);auto it=s->touches.find(id);
-                if(it!=s->touches.end()&&it->second.joystick){s->input.move_x=0;s->input.move_z=0;s->camera.joystick_active=false;s->camera.move_x=0;s->camera.move_y=0;}
+                if(it!=s->touches.end()&&it->second.joystick&&id==s->joystick_pointer)
+                    reset_joystick(*s);
                 s->touches.erase(id);
             }
         }return 1;
@@ -270,7 +321,7 @@ extern "C" void android_main(android_app* app) {
         }
         if(s.ready&&s.display!=EGL_NO_DISPLAY){
             const auto now=std::chrono::steady_clock::now();
-            const float dt=std::chrono::duration<float>(now-s.last).count();s.last=now;
+            const float dt=std::max(0.0f,std::min(0.05f,std::chrono::duration<float>(now-s.last).count()));s.last=now;
             const MissionStage previous_stage=s.world.mission_stage();
             s.world.update(dt,s.input);
             const MissionStage current_stage=s.world.mission_stage();
