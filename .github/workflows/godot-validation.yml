@@ -116,7 +116,7 @@ jobs:
             adb shell monkey -p com.globalcity.app 1
             sleep 6
             adb shell pidof com.globalcity.app
-            LOG="$(adb logcat -d -s GlobalEngine:I GlobalEngine:E AndroidRuntime:E)"
+            LOG="$(adb logcat -d -s GlobalEngine:V AndroidRuntime:E)"
             printf '%s\n' "$LOG"
             printf '%s\n' "$LOG" | grep -F "GLOBAL CITY-BETA 0.1 native entry point reached"
             printf '%s\n' "$LOG" | grep -F "GLES ready:"
