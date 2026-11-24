@@ -16,7 +16,7 @@ constexpr float kAcceleration=22.0f;
 constexpr int kChunkRadius=2;
 constexpr int kChunksPerAxis=64;
 constexpr float kMissionCompleteRadius=4.25f;
-constexpr std::size_t kDynamicBoxCount=51;
+constexpr std::size_t kDynamicBoxCount=52;
 float clamp_input(float v) noexcept { return std::max(-1.0f,std::min(1.0f,v)); }
 bool overlap(float a0,float a1,float b0,float b1) noexcept { return a0<b1&&a1>b0; }
 std::uint32_t hash_cell(int x,int z,int salt) noexcept {
@@ -272,7 +272,7 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     // The cyan beacon marks the first mission pickup; it turns green when reached.
     const Color beacon=mission_state_==MissionState::Completed?
         Color{0.18f,0.78f,0.34f,1}:Color{0.05f,0.82f,0.96f,1};
-    const float marker_x=cx,marker_z=cz+4.0f;
+    const float marker_x=mission_target_.x,marker_z=mission_target_.z+4.0f;
     out.push_back({{marker_x,0.18f,marker_z},{2.8f,0.12f,2.8f},beacon,false});
     out.push_back({{marker_x,3.25f,marker_z},{0.16f,3.0f,0.16f},beacon,false});
     out.push_back({{marker_x,6.35f,marker_z},{1.25f,0.13f,0.13f},beacon,false});
