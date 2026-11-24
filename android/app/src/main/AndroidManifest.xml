@@ -3,7 +3,7 @@
     <application
         android:allowBackup="false"
         android:hasCode="false"
-        android:label="GLOBAL CITY"
+        android:label="GLOBAL CITY-BETA"
         android:theme="@android:style/Theme.Material.Light.NoActionBar.Fullscreen">
         <activity
             android:name="android.app.NativeActivity"
