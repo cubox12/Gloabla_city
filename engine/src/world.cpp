@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <array>
 #include <utility>
 
 namespace global_engine {
@@ -78,6 +79,17 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
 
     const Color facades[]={{0.73f,0.65f,0.54f,1},{0.48f,0.62f,0.65f,1},
         {0.70f,0.45f,0.35f,1},{0.62f,0.62f,0.68f,1},{0.69f,0.68f,0.59f,1}};
+    // Small low-poly street trees make the avenues feel inhabited at a low GPU cost.
+    const Color bark{0.31f,0.20f,0.13f,1};
+    const Color leaf_a{0.16f,0.36f,0.22f,1};
+    const Color leaf_b{0.22f,0.45f,0.27f,1};
+    for(const auto&tree:std::array<Vec3,4>{{
+        {ox+7.4f,0.0f,oz+24.0f},{ox+24.0f,0.0f,oz+7.4f},
+        {ox+56.6f,0.0f,oz+40.0f},{ox+40.0f,0.0f,oz+56.6f}}}){
+        add({{tree.x,1.05f,tree.z},{0.18f,1.05f,0.18f},bark,false},true);
+        add({{tree.x,2.65f,tree.z},{0.95f,0.92f,0.95f},leaf_a,false},true);
+        add({{tree.x+0.34f,2.45f,tree.z-0.22f},{0.58f,0.62f,0.62f},leaf_b,false},true);
+    }
     for(int bx=0;bx<2;++bx)for(int bz=0;bz<2;++bz){
         const int gx=cx*2+bx,gz=cz*2+bz;
         const std::uint32_t seed=hash_cell(gx,gz,17);
