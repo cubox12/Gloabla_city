@@ -159,6 +159,24 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         const Color rooftop{0.38f,0.42f,0.43f,1};
         add({{x-w*0.48f,h+0.65f,z},{0.72f,0.23f,0.62f},rooftop,false},false);
         add({{x+w*0.43f,h+0.59f,z+d*0.25f},{0.48f,0.17f,0.48f},rooftop,false},false);
+        if((seed&1U)==0U){
+            const Color water_tank{0.48f,0.55f,0.55f,1};
+            add({{x+w*0.34f,h+1.02f,z-d*0.30f},{0.66f,0.72f,0.66f},water_tank,false},false);
+            add({{x+w*0.34f,h+1.82f,z-d*0.30f},{0.70f,0.08f,0.70f},
+                {0.31f,0.39f,0.40f,1},false},false);
+        }
+
+        // Small storefront awning and sign give each block a recognizable street-level identity.
+        const Color sign_colors[]={{0.72f,0.22f,0.15f,1},{0.10f,0.36f,0.47f,1},
+            {0.72f,0.49f,0.16f,1},{0.28f,0.43f,0.29f,1}};
+        const Color shop_color=sign_colors[(seed>>3U)%4U];
+        add({{x,3.55f,z-d-0.10f},{1.18f,0.24f,0.09f},shop_color,false},false);
+        add({{x,2.88f,z-d-0.48f},{1.52f,0.11f,0.52f},shop_color,false},false);
+        for(int stripe=0;stripe<4;++stripe){
+            const float stripe_x=x+(static_cast<float>(stripe)-1.5f)*0.72f;
+            add({{stripe_x,2.89f,z-d-0.50f},{0.19f,0.115f,0.53f},
+                {0.88f,0.82f,0.68f,1},false},false);
+        }
 
         // Recessed-looking glass panes. A few warm panes break up the uniform facade.
         const Color glass{0.12f,0.30f,0.39f,1};
