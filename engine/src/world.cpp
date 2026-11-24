@@ -16,7 +16,7 @@ constexpr float kAcceleration=22.0f;
 constexpr int kChunkRadius=2;
 constexpr int kChunksPerAxis=64;
 constexpr float kMissionCompleteRadius=4.25f;
-constexpr std::size_t kDynamicBoxCount=132;
+constexpr std::size_t kDynamicBoxCount=144;
 float clamp_input(float v) noexcept { return std::max(-1.0f,std::min(1.0f,v)); }
 bool overlap(float a0,float a1,float b0,float b1) noexcept { return a0<b1&&a1>b0; }
 std::uint32_t hash_cell(int x,int z,int salt) noexcept {
@@ -28,7 +28,7 @@ std::uint32_t hash_cell(int x,int z,int salt) noexcept {
 float unit_random(std::uint32_t h) noexcept { return static_cast<float>(h&0x00ffffffU)/16777215.0f; }
 
 void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants,
-                      const Vec3& forward,float phase,float intensity) {
+                      const Vec3& forward,float phase,float intensity,bool detailed_face=false) {
     const Color skin{0.72f,0.52f,0.39f,1.0f};
     const Color hair{0.075f,0.065f,0.055f,1.0f};
     const Color shoes{0.055f,0.062f,0.072f,1.0f};
@@ -70,6 +70,27 @@ void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants
     ellipsoid({p.x,1.60f+bob,p.z},{0.085f,0.105f,0.085f},skin);
     ellipsoid({p.x,1.78f+bob,p.z},{0.145f,0.18f,0.13f},skin);
     ellipsoid({p.x,1.91f+bob,p.z},{0.148f,0.075f,0.134f},hair);
+    if(detailed_face){
+        // Only the player carries close-up facial geometry; distant pedestrians stay cheaper.
+        const Color eye_white{0.91f,0.88f,0.78f,1.0f};
+        const Color iris{0.22f,0.15f,0.10f,1.0f};
+        const Color pupil{0.025f,0.022f,0.020f,1.0f};
+        const float face_yaw=std::atan2(f.x,f.z);
+        for(float side:{-1.0f,1.0f}){
+            const Vec3 eye_center=p+f*0.112f+right*(side*0.052f)+Vec3{0,1.805f+bob,0};
+            ellipsoid(eye_center,{0.031f,0.025f,0.016f},eye_white,face_yaw);
+            ellipsoid(eye_center+f*0.014f,{0.015f,0.017f,0.010f},iris,face_yaw);
+            ellipsoid(eye_center+f*0.022f,{0.007f,0.010f,0.006f},pupil,face_yaw);
+            ellipsoid(p+f*0.108f+right*(side*0.053f)+Vec3{0,1.846f+bob,0},
+                {0.039f,0.010f,0.014f},hair,face_yaw);
+            ellipsoid(p+right*(side*0.145f)+Vec3{0,1.78f+bob,0},
+                {0.035f,0.060f,0.043f},skin,face_yaw);
+        }
+        ellipsoid(p+f*0.142f+Vec3{0,1.755f+bob,0},
+            {0.027f,0.038f,0.033f},skin,face_yaw);
+        ellipsoid(p+f*0.126f+Vec3{0,1.704f+bob,0},
+            {0.038f,0.009f,0.011f},{0.24f,0.075f,0.065f,1},face_yaw);
+    }
 
     // Arms are two tapered-looking articulated segments with hands.
     const float arm_left=std::sin(phase+3.14159265f)*0.15f*amount;
@@ -414,7 +435,7 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
         player_velocity_.z*player_velocity_.z);
     append_humanoid(out,player_position_,{0.12f,0.35f,0.62f,1},{0.12f,0.15f,0.19f,1},
         player_facing_,player_animation_phase_,
-        std::min(1.0f,player_speed/kMoveSpeed));
+        std::min(1.0f,player_speed/kMoveSpeed),true);
     if(mission_stage_==MissionStage::DeliverPackage)
         out.push_back({{player_position_.x+0.30f,1.18f,player_position_.z-0.18f},
             {0.28f,0.25f,0.25f},{0.68f,0.43f,0.20f,1},false});
