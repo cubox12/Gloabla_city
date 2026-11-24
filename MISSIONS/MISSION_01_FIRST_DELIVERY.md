@@ -1,37 +1,31 @@
-# Mission 01 — Primer reparto
+# Misión 01 — Primer reparto
 
-**Estado:** prototipo incompleto / primera entrega jugable  
-**Objetivo actual:** localizar el coche azul de reparto y llegar a la baliza cian.
+**Estado:** primera misión jugable del prototipo nativo  
+**Objetivo:** localizar el coche azul, recoger el paquete y llevarlo al punto de entrega.
 
 ## Inicio
-El jugador aparece en una avenida de la ciudad. El HUD muestra la misión y la distancia aproximada al vehículo.
+El jugador aparece en una avenida. El HUD muestra la distancia al coche azul y las instrucciones de la misión.
 
 ## Recorrido
-- Salida: (0, 0) en el plano X/Z.
-- Vehículo: (96, -6).
-- Baliza: junto al coche, en (96, -2).
-- Radio de activación: 4.25 unidades alrededor del vehículo.
-- Al entrar en el radio, la misión pasa de `InProgress` a `Completed` y la baliza cambia de cian a verde.
+1. **Encuentra el vehículo:** está en (96, -6), con una baliza cian.
+2. **Recoge el paquete:** entra en un radio de 4.25 unidades del coche. El juego activa el paquete visible en la espalda del personaje y cambia el objetivo.
+3. **Entrega el paquete:** sigue la baliza cian hasta (160, -64). Al entrar en el radio de 4.25 unidades, la baliza se vuelve verde y la misión queda completada.
+
+La recogida y la entrega se activan automáticamente al llegar a sus zonas; no hay botón contextual en esta versión.
 
 ## Controles táctiles
-- Joystick virtual en la zona inferior izquierda: arrastrar para moverte; su base aparece donde apoyas el dedo.
-- Arrastrar cualquier parte de la mitad derecha: rotar la cámara.
-- El zoom está desactivado; la cámara mantiene una distancia fija.
+- Joystick virtual abajo a la izquierda: mantener y arrastrar para caminar.
+- Arrastrar la mitad derecha: girar la cámara.
+- Sin zoom; distancia de cámara fija.
+- El juego se ejecuta en horizontal.
 
-## Contenido ya presente
-- Ciudad procedural por chunks, con carreteras, aceras, líneas discontinuas, edificios de fachadas variadas, bandas de planta, azoteas, ventanas y farolas.
-- Jugador y cinco peatones low-poly.
-- Vehículo compacto azul de reparto y baliza de destino.
-- HUD con nombre de misión, objetivo, distancia e instrucciones.
-- Streaming de sectores, LOD por distancia, culling y buffers GPU persistentes.
+## Contenido de esta versión
+- Ciudad procedural con carreteras, aceras, líneas viales, edificios low-poly, ventanas, azoteas, farolas y árboles.
+- Jugador con paquete visible durante la segunda fase y cinco peatones.
+- Coche azul de reparto, baliza que cambia de ubicación y color según el objetivo.
+- HUD con fases, distancia e instrucciones.
+- Sonidos originales sintetizados en tiempo real: pasos, recogida y entrega.
+- Streaming de sectores, LOD por distancia, frustum culling y buffers GPU persistentes.
 
-## Pendiente para convertirla en misión completa
-- Interacción explícita para recoger el paquete.
-- Diálogo/encargo inicial.
-- Carga visual del paquete y destino de entrega.
-- Tráfico, conducción y física del vehículo.
-- Animaciones, audio, efectos, colisiones del coche y peatones.
-- Marcador direccional y minimapa.
-- Guardado y reanudación.
-
-La misión actual termina al encontrar el vehículo. Es una prueba de recorrido y de la integración motor-juego, no una misión comercial terminada.
+## Límites conocidos
+Esta es una primera misión completa como bucle de búsqueda-recogida-entrega, no un juego terminado: todavía no hay conducción del coche, tráfico, diálogo, animaciones esqueléticas, minimapa, guardado, menú de pausa ni pruebas físicas en dispositivos Android. Los efectos de sonido están sintetizados y son básicos.
