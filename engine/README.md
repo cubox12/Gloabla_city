@@ -13,7 +13,7 @@ Native C++17 / Android NativeActivity / OpenGL ES 3.0 runtime for GLOBAL CITY.
 - Frustum-sphere and squared-distance culling before issuing draw calls.
 - Stylized low-poly player, five pedestrians and a small delivery car use one dynamic streaming VBO.
 - Fog shading softens distant geometry; a cached bitmap HUD reports mission objective and distance.
-- Camera follows the player. On Android, hold the left side to move and drag the right side to orbit the camera.
+- Camera follows the player. Android controls: virtual joystick on the lower-left (touch and drag) to move; drag anywhere on the right half to orbit the camera. Pinch zoom is disabled; camera distance is fixed.
 
 ## First playable mission — prototype 01
 `Mision 01: Primer reparto` is an intentionally small vertical slice:
