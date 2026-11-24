@@ -31,6 +31,11 @@ Vec3 Vec3::operator*(float s)const noexcept{return{x*s,y*s,z*s};}
 CityWorld::CityWorld(){reset();}
 WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
     WorldChunk chunk;chunk.x=cx;chunk.z=cz;
+    // A chunk contains at most four buildings with up to eleven window rows each.
+    // Reserve once so procedural generation does not repeatedly grow these vectors.
+    chunk.high_detail_boxes.reserve(640);
+    chunk.low_detail_boxes.reserve(32);
+    chunk.collision_boxes.reserve(4);
     const float ox=static_cast<float>(cx)*kChunkSize,oz=static_cast<float>(cz)*kChunkSize;
     chunk.center_x=ox+kChunkSize*0.5f;chunk.center_z=oz+kChunkSize*0.5f;
     auto add=[&](const Box& b,bool low){
