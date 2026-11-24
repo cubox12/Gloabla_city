@@ -14,9 +14,9 @@ El jugador aparece en una avenida de la ciudad. El HUD muestra la misión y la d
 - Al entrar en el radio, la misión pasa de `InProgress` a `Completed` y la baliza cambia de cian a verde.
 
 ## Controles táctiles
-- Mantener y deslizar el lado izquierdo: movimiento.
-- Deslizar el lado derecho: rotar la cámara.
-- Pinza con dos dedos: acercar o alejar la cámara.
+- Joystick virtual en la zona inferior izquierda: arrastrar para moverte; su base aparece donde apoyas el dedo.
+- Arrastrar cualquier parte de la mitad derecha: rotar la cámara.
+- El zoom está desactivado; la cámara mantiene una distancia fija.
 
 ## Contenido ya presente
 - Ciudad procedural por chunks, con carreteras, aceras, líneas discontinuas, edificios de fachadas variadas, bandas de planta, azoteas, ventanas y farolas.
