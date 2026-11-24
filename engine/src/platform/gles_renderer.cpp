@@ -254,6 +254,57 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
             add_control_vertex(cx+std::cos(a1)*radius,cy+std::sin(a1)*radius,color);
         }
     };
+    auto control_rect=[&](float x,float y,float w,float h,const Color&color){
+        add_control_vertex(x,y,color);add_control_vertex(x+w,y,color);add_control_vertex(x+w,y+h,color);
+        add_control_vertex(x,y,color);add_control_vertex(x+w,y+h,color);add_control_vertex(x,y+h,color);
+    };
+    // Compact top-down minimap: road grid, building blocks, player and current objective.
+    if(width_>=700&&height_>=360){
+        const float map_size=std::max(86.0f,std::min(118.0f,static_cast<float>(height_)*0.22f));
+        const float map_x=static_cast<float>(width_)-map_size-14.0f,map_y=14.0f;
+        const float inset=5.0f,map_left=map_x+inset,map_top=map_y+inset;
+        const float map_inner=map_size-inset*2.0f,map_cx=map_x+map_size*0.5f,map_cy=map_y+map_size*0.5f;
+        const float map_scale=map_inner/96.0f;
+        const Vec3&position=world.player_position();
+        control_rect(map_x-2.0f,map_y-2.0f,map_size+4.0f,map_size+4.0f,{0.72f,0.84f,0.84f,0.26f});
+        control_rect(map_x,map_y,map_size,map_size,{0.025f,0.055f,0.065f,0.92f});
+        control_rect(map_left,map_top,map_inner,map_inner,{0.16f,0.25f,0.18f,0.98f});
+        auto clipped_map_rect=[&](float x,float y,float w,float h,const Color&color){
+            const float left=std::max(map_left,x),top=std::max(map_top,y);
+            const float right=std::min(map_left+map_inner,x+w),bottom=std::min(map_top+map_inner,y+h);
+            if(right>left&&bottom>top)control_rect(left,top,right-left,bottom-top,color);
+        };
+        const int base_x=static_cast<int>(std::floor(position.x/32.0f));
+        const int base_z=static_cast<int>(std::floor(position.z/32.0f));
+        for(int ix=-3;ix<=3;++ix)for(int iz=-3;iz<=3;++iz){
+            const float building_x=(static_cast<float>(base_x+ix)*32.0f)+16.0f;
+            const float building_z=(static_cast<float>(base_z+iz)*32.0f)+16.0f;
+            const float px=map_cx+(building_x-position.x)*map_scale;
+            const float py=map_cy+(building_z-position.z)*map_scale;
+            const Color block=((ix+iz)&1)==0?Color{0.31f,0.38f,0.27f,1}:Color{0.36f,0.39f,0.28f,1};
+            clipped_map_rect(px-4.5f*map_scale,py-4.5f*map_scale,
+                9.0f*map_scale,9.0f*map_scale,block);
+        }
+        const Color road_color{0.23f,0.27f,0.29f,1};
+        for(int i=-3;i<=3;++i){
+            const float road_x=static_cast<float>(base_x+i)*32.0f;
+            const float road_z=static_cast<float>(base_z+i)*32.0f;
+            const float px=map_cx+(road_x-position.x)*map_scale;
+            const float py=map_cy+(road_z-position.z)*map_scale;
+            clipped_map_rect(px-4.0f*map_scale,map_top,8.0f*map_scale,map_inner,road_color);
+            clipped_map_rect(map_left,py-4.0f*map_scale,map_inner,8.0f*map_scale,road_color);
+        }
+        const Vec3&objective=world.mission_target();
+        float target_dx=(objective.x-position.x)*map_scale;
+        float target_dz=(objective.z-position.z)*map_scale;
+        const float edge=map_inner*0.5f-6.0f;
+        const float max_component=std::max(std::abs(target_dx),std::abs(target_dz));
+        if(max_component>edge){const float factor=edge/max_component;target_dx*=factor;target_dz*=factor;}
+        const Color objective_color=world.mission_completed()?Color{0.22f,0.92f,0.40f,1}:Color{0.08f,0.88f,1.0f,1};
+        disk(map_cx+target_dx,map_cy+target_dz,4.1f,objective_color);
+        disk(map_cx,map_cy,4.2f,{0.94f,0.97f,0.98f,1});
+        disk(map_cx,map_cy,2.3f,{0.12f,0.42f,0.95f,1});
+    }
     const VirtualStickLayout stick=virtual_stick_layout(width_,height_);
     const float base_x=stick.center_x;
     const float base_y=stick.center_y;
