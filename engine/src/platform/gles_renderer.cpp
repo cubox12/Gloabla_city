@@ -38,7 +38,7 @@ GLuint compile(GLenum type,const char*source){
     GLuint sh=glCreateShader(type);glShaderSource(sh,1,&source,nullptr);glCompileShader(sh);
     GLint ok=0;glGetShaderiv(sh,GL_COMPILE_STATUS,&ok);if(ok==GL_TRUE)return sh;
     GLint n=0;glGetShaderiv(sh,GL_INFO_LOG_LENGTH,&n);
-    std::string log(static_cast<std::size_t>(n>1?n:1),'\\0');
+    std::string log(static_cast<std::size_t>(n>1?n:1),'\0');
     glGetShaderInfoLog(sh,n,nullptr,log.data());
     __android_log_print(ANDROID_LOG_ERROR,"GlobalEngine","Shader error: %s",log.c_str());
     glDeleteShader(sh);return 0;
@@ -80,16 +80,16 @@ constexpr std::uint8_t kFont[36][7]={
 
 bool GlesRenderer::initialize(){
     static constexpr char vs[]=
-        "#version 300 es\\n"
+        "#version 300 es\n"
         "layout(location=0) in vec3 aPosition;layout(location=1) in vec4 aColor;"
         "uniform mat4 uMVP;uniform mat4 uView;out vec4 vColor;out float vFogDepth;"
         "void main(){vec4 p=vec4(aPosition,1.0);gl_Position=uMVP*p;"
-        "vColor=aColor;vFogDepth=length((uView*p).xyz); }\\n";
+        "vColor=aColor;vFogDepth=length((uView*p).xyz); }\n";
     static constexpr char fs[]=
-        "#version 300 es\\nprecision mediump float;in vec4 vColor;in float vFogDepth;"
+        "#version 300 es\nprecision mediump float;in vec4 vColor;in float vFogDepth;"
         "out vec4 outColor;void main(){float fog=smoothstep(145.0,265.0,vFogDepth);"
         "vec3 lit=pow(max(vColor.rgb,vec3(0.0)),vec3(0.94));"
-        "outColor=vec4(mix(lit,vec3(0.52,0.67,0.74),fog),vColor.a);}\\n";
+        "outColor=vec4(mix(lit,vec3(0.52,0.67,0.74),fog),vColor.a);}\n";
     GLuint v=compile(GL_VERTEX_SHADER,vs),f=compile(GL_FRAGMENT_SHADER,fs);
     if(!v||!f){if(v)glDeleteShader(v);if(f)glDeleteShader(f);return false;}
     program_=glCreateProgram();glAttachShader(program_,v);glAttachShader(program_,f);
@@ -146,7 +146,7 @@ void GlesRenderer::draw_hud(const CityWorld&world){
         const Color white{0.91f,0.95f,0.96f,1};
         const Color muted{0.60f,0.76f,0.81f,1};
         auto draw_text=[&](const char*text,float x,float y,const Color&color){
-            for(const char*ch=text;*ch!='\\0';++ch){
+            for(const char*ch=text;*ch!='\0';++ch){
                 if(*ch==' '){x+=6.0f*scale;continue;}
                 int index=-1;
                 if(*ch>='A'&&*ch<='Z')index=static_cast<int>(*ch-'A');
