@@ -239,6 +239,9 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     out.push_back({{cx-1.30f,1.36f,cz},{0.07f,0.28f,0.72f},glass,false});
     for(float sx:{-1.35f,1.35f})for(float sz:{-0.98f,0.98f})
         out.push_back({{cx+sx,0.38f,cz+sz},{0.40f,0.34f,0.16f},rubber,false});
+    const Color headlights{0.95f,0.84f,0.58f,1};
+    out.push_back({{cx+2.23f,0.80f,cz-0.66f},{0.07f,0.14f,0.20f},headlights,false});
+    out.push_back({{cx+2.23f,0.80f,cz+0.66f},{0.07f,0.14f,0.20f},headlights,false});
 
     // The cyan beacon marks the first mission pickup; it turns green when reached.
     const Color beacon=mission_state_==MissionState::Completed?
