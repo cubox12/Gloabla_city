@@ -248,8 +248,8 @@ void command(android_app* app,int32_t cmd) {
 void key_input(State& s,int key,bool down) {
     if(key==AKEYCODE_A||key==AKEYCODE_DPAD_LEFT)s.input.move_x=down?-1.0f:0.0f;
     if(key==AKEYCODE_D||key==AKEYCODE_DPAD_RIGHT)s.input.move_x=down?1.0f:0.0f;
-    if(key==AKEYCODE_W||key==AKEYCODE_DPAD_UP)s.input.move_z=down?1.0f:0.0f;
-    if(key==AKEYCODE_S||key==AKEYCODE_DPAD_DOWN)s.input.move_z=down?-1.0f:0.0f;
+    if(key==AKEYCODE_W||key==AKEYCODE_DPAD_UP)s.input.move_z=down?-1.0f:0.0f;
+    if(key==AKEYCODE_S||key==AKEYCODE_DPAD_DOWN)s.input.move_z=down?1.0f:0.0f;
 }
 int32_t input(android_app* app,AInputEvent* e) {
     auto* s=static_cast<State*>(app->userData);if(!s)return 0;
