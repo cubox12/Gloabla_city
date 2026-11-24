@@ -38,6 +38,6 @@ int main(){
     assert(all.size()==world.static_box_count()+51);
     std::cout<<"GLOBAL ENGINE CORE: PASS chunks="<<world.streaming_stats().active_chunks
         <<" buildings="<<world.building_count()<<" resident_boxes="<<world.static_box_count()
-        <<" mission=completed dynamic_boxes="<<dynamic.size()<<'\\n';
+        <<" mission=completed dynamic_boxes="<<dynamic.size()<<'\n';
     return 0;
 }
