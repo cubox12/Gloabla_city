@@ -46,6 +46,15 @@ int main(){
     assert(world.streaming_stats().active_chunks==25);
     assert(world.building_count()==100);
     assert(world.static_box_count()>1000);
+    std::size_t crosswalk_count=0;
+    for(const WorldChunk&chunk:world.active_chunks()){
+        for(const Box&box:chunk.high_detail_boxes){
+            if(std::abs(box.color.r-0.88f)<1.0e-5f&&
+               std::abs(box.color.g-0.90f)<1.0e-5f&&
+               std::abs(box.color.b-0.88f)<1.0e-5f)++crosswalk_count;
+        }
+    }
+    assert(crosswalk_count==world.active_chunks().size()*80U);
     assert(!world.player_intersects_building());
     assert(world.mission_state()==global_engine::MissionState::InProgress);
     assert(world.mission_stage()==global_engine::MissionStage::FindVehicle);
