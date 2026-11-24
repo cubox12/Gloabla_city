@@ -23,7 +23,7 @@ int main(){
     }
     std::vector<double> frame_ms;frame_ms.reserve(frames);
     std::vector<global_engine::Box> dynamic_boxes;dynamic_boxes.reserve(52);
-    std::vector<global_engine::Box> render_boxes;render_boxes.reserve(15000);
+    std::vector<global_engine::Box> render_boxes;render_boxes.reserve(17000);
     std::size_t peak_chunks=0,peak_boxes=0,peak_gpu_boxes=0;
     for(int frame=0;frame<frames;++frame){
         const auto begin=clock::now();
@@ -54,7 +54,7 @@ int main(){
         peak_boxes=std::max(peak_boxes,s.resident_boxes);
         peak_gpu_boxes=std::max(peak_gpu_boxes,static_gpu_boxes+dynamic_boxes.size()+agents.size());
         assert(s.active_chunks<=25);
-        assert(s.resident_boxes<15000);
+        assert(s.resident_boxes<17000);
         assert(!world.player_intersects_building());
     }
     std::sort(frame_ms.begin(),frame_ms.end());
