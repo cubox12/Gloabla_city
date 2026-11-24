@@ -62,6 +62,8 @@ private:
     bool stream_center_initialized_{false};
     Vec3 player_position_{};
     Vec3 player_velocity_{};
+    Vec3 player_facing_{0.0f,0.0f,-1.0f};
+    float player_animation_phase_{0.0f};
     Vec3 vehicle_position_{96.0f, 0.0f, -6.0f};
     Vec3 mission_target_{96.0f, 0.0f, -6.0f};
     float mission_distance_{96.0f};
