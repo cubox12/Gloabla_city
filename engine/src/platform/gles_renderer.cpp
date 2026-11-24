@@ -293,7 +293,8 @@ void GlesRenderer::shutdown(){
     }
     gpu_chunks_.clear();
     if(dynamic_vertex_buffer_)glDeleteBuffers(1,&dynamic_vertex_buffer_);
-    if(hud_vertex_buffer_)glDeleteBuffers(1,&hud_vertex_buffer_);\n    if(control_vertex_buffer_)glDeleteBuffers(1,&control_vertex_buffer_);
+    if(hud_vertex_buffer_)glDeleteBuffers(1,&hud_vertex_buffer_);
+    if(control_vertex_buffer_)glDeleteBuffers(1,&control_vertex_buffer_);
     if(program_)glDeleteProgram(program_);
     dynamic_vertex_buffer_=0;hud_vertex_buffer_=0;control_vertex_buffer_=0;program_=0;
     mvp_location_=-1;view_location_=-1;dynamic_boxes_.clear();
