@@ -147,10 +147,12 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
 
 void CityWorld::reset(){
     player_position_={};player_velocity_={};npc_elapsed_=0.0f;
-    mission_target_={96.0f,0.0f,-6.0f};
+    vehicle_position_={96.0f,0.0f,-6.0f};
+    mission_target_=vehicle_position_;
     mission_distance_=std::sqrt(mission_target_.x*mission_target_.x+
         mission_target_.z*mission_target_.z);
     mission_state_=MissionState::InProgress;
+    mission_stage_=MissionStage::FindVehicle;
     active_chunks_.clear();active_building_count_=0;streaming_stats_={};
     streaming_stats_.world_chunks_per_axis=kChunksPerAxis;
     streaming_stats_.active_radius=kChunkRadius;
@@ -210,14 +212,26 @@ void CityWorld::update(float delta,const InputState&input){
     next.z=std::max(-kWorldHalfSize+kPlayerRadius,std::min(kWorldHalfSize-kPlayerRadius,next.z+player_velocity_.z*dt));
     if(!collides_with_building(next))player_position_.z=next.z;else player_velocity_.z=0;
     sync_chunks();
-    const float mdx=player_position_.x-mission_target_.x;
-    const float mdz=player_position_.z-mission_target_.z;
+    float mdx=player_position_.x-mission_target_.x;
+    float mdz=player_position_.z-mission_target_.z;
     mission_distance_=std::sqrt(mdx*mdx+mdz*mdz);
-    if(mission_state_==MissionState::InProgress&&mission_distance_<=kMissionCompleteRadius)
+    if(mission_stage_==MissionStage::FindVehicle&&mission_distance_<=kMissionCompleteRadius){
+        mission_stage_=MissionStage::DeliverPackage;
+        mission_target_={160.0f,0.0f,-64.0f};
+        mdx=player_position_.x-mission_target_.x;
+        mdz=player_position_.z-mission_target_.z;
+        mission_distance_=std::sqrt(mdx*mdx+mdz*mdz);
+    }
+    if(mission_stage_==MissionStage::DeliverPackage&&mission_distance_<=kMissionCompleteRadius){
+        mission_stage_=MissionStage::Completed;
         mission_state_=MissionState::Completed;
+    }
 }
 void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     append_humanoid(out,player_position_,{0.12f,0.35f,0.62f,1},{0.12f,0.15f,0.19f,1});
+    if(mission_stage_==MissionStage::DeliverPackage)
+        out.push_back({{player_position_.x+0.30f,1.18f,player_position_.z-0.18f},
+            {0.28f,0.25f,0.25f},{0.68f,0.43f,0.20f,1},false});
     for(int i=0;i<5;++i){
         const float phase=npc_elapsed_*0.18f+static_cast<float>(i)*1.25663706f;
         const float radius=23.0f+static_cast<float>(i%2)*3.0f;
@@ -229,7 +243,7 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     }
 
     // Parked blue compact delivery car: body, cabin, front/rear glass and four tyres.
-    const float cx=mission_target_.x,cz=mission_target_.z;
+    const float cx=vehicle_position_.x,cz=vehicle_position_.z;
     const Color car_blue{0.06f,0.25f,0.54f,1};
     const Color glass{0.15f,0.42f,0.54f,1};
     const Color rubber{0.045f,0.052f,0.058f,1};
