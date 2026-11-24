@@ -128,9 +128,11 @@ void append_soft_box(std::vector<float>&out,const Box&b){
     const float bevel=std::min({h.x,h.y,h.z})*0.085f;
     const Vec3 inner{std::max(0.001f,h.x-bevel),std::max(0.001f,h.y-bevel),
         std::max(0.001f,h.z-bevel)};
-    const std::array<float,5> gx{{-1.0f,-inner.x/h.x,0.0f,inner.x/h.x,1.0f}};
-    const std::array<float,5> gy{{-1.0f,-inner.y/h.y,0.0f,inner.y/h.y,1.0f}};
-    const std::array<float,5> gz{{-1.0f,-inner.z/h.z,0.0f,inner.z/h.z,1.0f}};
+    // Two subdivisions per face retain rounded edges at one quarter of the
+    // previous vertex count, which matters when 25 sectors keep two LODs.
+    const std::array<float,3> gx{{-1.0f,0.0f,1.0f}};
+    const std::array<float,3> gy{{-1.0f,0.0f,1.0f}};
+    const std::array<float,3> gz{{-1.0f,0.0f,1.0f}};
     auto face_point=[&](int face,int row,int col){
         switch(face){
             case 0:return Vec3{ h.x,gy[row]*h.y,gz[col]*h.z};
@@ -151,7 +153,7 @@ void append_soft_box(std::vector<float>&out,const Box&b){
     };
     const std::array<Vec3,6> normals{{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}};
     for(int face=0;face<6;++face){
-        for(int row=0;row<4;++row)for(int col=0;col<4;++col){
+        for(int row=0;row<2;++row)for(int col=0;col<2;++col){
             const auto p00=rounded(face_point(face,row,col),normals[face]);
             const auto p10=rounded(face_point(face,row,col+1),normals[face]);
             const auto p11=rounded(face_point(face,row+1,col+1),normals[face]);
@@ -182,7 +184,7 @@ std::size_t geometry_vertex_count(const Box&box){
     switch(box.shape){
         case GeometryShape::Ellipsoid:return 240U;
         case GeometryShape::Cylinder:return 96U;
-        case GeometryShape::SoftBox:return 576U;
+        case GeometryShape::SoftBox:return 144U;
         case GeometryShape::Box:return 36U;
     }
     return 36U;

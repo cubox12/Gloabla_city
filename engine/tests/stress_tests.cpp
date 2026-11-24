@@ -14,7 +14,7 @@ std::size_t vertex_count(const global_engine::Box&box){
     switch(box.shape){
         case GeometryShape::Ellipsoid:return 240U;
         case GeometryShape::Cylinder:return 96U;
-        case GeometryShape::SoftBox:return 576U;
+        case GeometryShape::SoftBox:return 144U;
         case GeometryShape::Box:return 36U;
     }
     return 36U;
