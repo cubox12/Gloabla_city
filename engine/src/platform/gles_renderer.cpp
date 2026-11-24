@@ -81,11 +81,11 @@ void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
     glUseProgram(program_);glUniformMatrix4fv(mvp_location_,1,GL_FALSE,vp.v.data());
     for(const WorldChunk&chunk:chunks){
         const float dx=chunk.center_x-player.x,dz=chunk.center_z-player.z;
-        const float distance=std::sqrt(dx*dx+dz*dz);
-        if(distance>205.0f||!sphere_visible(planes,chunk.center_x,8.0f,chunk.center_z,chunk.bounds_radius))continue;
+        const float distance_sq=dx*dx+dz*dz;
+        if(distance_sq>205.0f*205.0f||!sphere_visible(planes,chunk.center_x,8.0f,chunk.center_z,chunk.bounds_radius))continue;
         auto it=std::find_if(gpu_chunks_.begin(),gpu_chunks_.end(),[&](const GpuChunk&g){return g.x==chunk.x&&g.z==chunk.z;});
         if(it==gpu_chunks_.end()){gpu_chunks_.push_back({});it=std::prev(gpu_chunks_.end());upload_chunk(chunk,*it);}
-        const bool high_lod=distance<105.0f;
+        const bool high_lod=distance_sq<105.0f*105.0f;
         const GLuint buffer=high_lod?it->high_buffer:it->low_buffer;
         const GLsizei count=high_lod?it->high_count:it->low_count;
         glBindBuffer(GL_ARRAY_BUFFER,buffer);attributes();if(count>0)glDrawArrays(GL_TRIANGLES,0,count);
