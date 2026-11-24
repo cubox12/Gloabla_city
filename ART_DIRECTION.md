@@ -1,28 +1,27 @@
-# Dirección visual — GLOBAL CITY 0.4
+# Dirección visual — GLOBAL CITY
 
-## Pilares
-1. Ciudad legible y limpia: calles claramente separadas del terreno.
-2. 3D estilizado de geometría sencilla: siluetas reconocibles y materiales mate.
-3. Perfil móvil conservador: geometría estática agrupada, texturas pequeñas y sombras dinámicas desactivadas.
-4. La fase actual es una maqueta urbana vacía: las parcelas están delimitadas, pero todavía no contienen edificios.
+## Objetivo visual
+Ciudad urbana semi-realista, legible y creíble en móvil. La geometría de bajo coste debe conservar siluetas y proporciones naturales; no se aceptará que cajas de colores sustituyan indefinidamente a personajes, vehículos o arquitectura.
 
-## Cámara y composición
-- Cámara orbital alrededor del centro de la ciudad.
-- Un dedo arrastra para girar la vista; dos dedos hacen zoom.
-- En escritorio: botón izquierdo arrastrado para orbitar y rueda para zoom.
-- El personaje permanece inmóvil y visible cerca del centro.
+## Prioridad de producción
+1. Sustituir el humanoide provisional de cajas por un personaje 3D riggeado, con anatomía, ropa, materiales y animaciones coherentes.
+2. Sustituir los edificios prismáticos por módulos arquitectónicos con fachadas, ventanas insertadas, balcones, entradas, variaciones de planta y tejados diferenciados.
+3. Incorporar materiales PBR de coste controlado, iluminación ambiental y sombras selectivas.
+4. Mejorar vehículos, vegetación, mobiliario urbano y señalización con modelos de silueta reconocible.
 
-## Paleta base
-- Césped: verde apagado.
-- Parcelas vacías: verde ligeramente más claro.
-- Bordes de parcelas: verde oscuro discreto.
-- Asfalto: gris carbón.
-- Aceras: gris cálido claro.
-- Pasos peatonales: marfil suave.
-- Personaje: camiseta azul, pantalón azul oscuro y piel cálida.
+## Reglas de urbanismo procedural
+- La calzada tiene 8 unidades de ancho y las aceras se mantienen fuera de ella.
+- Farolas, árboles, señales y mobiliario se colocan en franjas peatonales o alcorques; nunca en el centro de carriles.
+- Ningún objeto de mobiliario o vegetación puede solaparse con edificios, fachadas, entradas o la zona libre de circulación.
+- Las copas de los árboles deben respetar fachadas, balcones, postes y cables.
+- Los accesos a edificios y las esquinas deben permanecer despejados.
+- Las reglas de colocación se validan con pruebas deterministas por sector, además de inspección visual.
 
-## Reglas de producción
-- Texturas tileables de 128 × 128 para el prototipo.
-- Materiales rugosos, sin metalizado.
-- Evitar transparencias, partículas y sombras dinámicas en el perfil de bajo coste.
-- Agrupar elementos estáticos por material; no crear un nodo por franja o parcela.
+## Perfil móvil
+- Objetivo inicial: Adreno 610, GLES 3.0.
+- Usar LOD por distancia, instancing donde sea apropiado, atlas de materiales y geometría compartida.
+- Sombras selectivas y resolución adaptativa; evitar transparencias y luces dinámicas por objeto.
+- La calidad visual no se considera validada por el mero hecho de compilar: se requiere captura en dispositivo y revisión de clipping, iluminación, escala y rendimiento.
+
+## Estado honesto
+La implementación actual todavía usa cajas para el protagonista, peatones, coche y buena parte de la arquitectura. Es una base funcional de geometría procedural, no un resultado realista. Las siguientes mejoras visuales deben introducir activos 3D reales y materiales; añadir más cubos no cuenta como progreso de calidad.
