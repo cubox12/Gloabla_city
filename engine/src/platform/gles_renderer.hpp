@@ -25,6 +25,7 @@ private:
     void draw_hud(const CityWorld&world,const CameraState&camera);
     GLuint program_{0},dynamic_vertex_buffer_{0},hud_vertex_buffer_{0},control_vertex_buffer_{0};
     GLint mvp_location_{-1},view_location_{-1};
+    GLint lighting_location_{-1},camera_position_location_{-1};
     int width_{1},height_{1};
     int hud_cached_width_{0},hud_cached_height_{0},hud_cached_distance_{-1},hud_cached_stage_{-1};
     bool hud_cached_complete_{false};
