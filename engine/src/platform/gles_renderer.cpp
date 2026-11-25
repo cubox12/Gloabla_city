@@ -221,16 +221,16 @@ constexpr std::uint8_t kFont[36][7]={
 
 bool GlesRenderer::initialize(){
     static constexpr char vs[]=
-        "#version 300 es\\n"
+        "#version 300 es\n"
         "layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aNormal;layout(location=2) in vec4 aColor;"
         "uniform mat4 uMVP;uniform mat4 uView;"
         "out vec4 vColor;out vec3 vNormal;out vec3 vWorldPosition;out vec3 vViewPosition;"
         "out float vFogDepth;out float vViewHeight;"
         "void main(){vec4 p=vec4(aPosition,1.0);vec4 viewPosition=uView*p;gl_Position=uMVP*p;"
         "vColor=aColor;vNormal=aNormal;vWorldPosition=aPosition;vViewPosition=viewPosition.xyz;"
-        "vFogDepth=length(viewPosition.xyz);vViewHeight=viewPosition.y;}\\n";
+        "vFogDepth=length(viewPosition.xyz);vViewHeight=viewPosition.y;}\n";
     static constexpr char fs[]=
-        "#version 300 es\\nprecision highp float;"
+        "#version 300 es\nprecision highp float;"
         "in vec4 vColor;in vec3 vNormal;in vec3 vWorldPosition;in vec3 vViewPosition;"
         "in float vFogDepth;in float vViewHeight;uniform float uLightingEnabled;uniform vec3 uCameraPosition;"
         "out vec4 outColor;"
@@ -266,7 +266,7 @@ bool GlesRenderer::initialize(){
         "float haze=mix(0.92,1.04,smoothstep(0.0,0.65,elevation));"
         "sky*=haze;float finalLuminance=dot(grade,vec3(0.2126,0.7152,0.0722));"
         "grade=mix(vec3(finalLuminance),grade,1.06);"
-        "outColor=vec4(mix(grade,sky,fog),vColor.a); }\\n";
+        "outColor=vec4(mix(grade,sky,fog),vColor.a); }\n";
     glClearColor(0.55f,0.72f,0.82f,1.0f);
     gpu_chunks_.reserve(25);
     dynamic_boxes_.reserve(144);
