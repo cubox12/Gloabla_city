@@ -220,6 +220,7 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
         const Color trim{0.82f,0.79f,0.72f,1};
         const Color glass{0.11f,0.25f,0.31f,1};
         const Color warm_glass{0.46f,0.36f,0.22f,1};
+        const Color window_frame{0.105f,0.125f,0.135f,1};
 
         // Collision is a single footprint; visible geometry is split into a podium
         // and a slightly inset tower so every building has a more natural skyline.
@@ -280,11 +281,21 @@ WorldChunk CityWorld::generate_chunk(int cx,int cz)const{
                 const float wx=upper_x+(static_cast<float>(col)-0.5f)*upper_w*0.92f;
                 const bool warm=(hash_cell(gx+col,gz+floor,91)&7U)==0U;
                 const Color pane=warm?warm_glass:glass;
-                add({{wx,y,upper_z-upper_d-0.045f},{0.68f,0.77f,0.045f},pane,false},false);
-                add({{wx,y,upper_z+upper_d+0.045f},{0.68f,0.77f,0.045f},pane,false},false);
+                // A dark, slightly oversized surround sits behind each pane. The glass
+                // is offset toward the exterior so the frame remains visible without z-fighting.
+                const float front_z=upper_z-upper_d-0.045f;
+                const float back_z=upper_z+upper_d+0.045f;
+                add({{wx,y,front_z},{0.77f,0.86f,0.035f},window_frame,false},false);
+                add({{wx,y,back_z},{0.77f,0.86f,0.035f},window_frame,false},false);
+                add({{wx,y,front_z-0.055f},{0.68f,0.77f,0.045f},pane,false},false);
+                add({{wx,y,back_z+0.055f},{0.68f,0.77f,0.045f},pane,false},false);
                 const float wz=upper_z+(static_cast<float>(col)-0.5f)*upper_d*0.92f;
-                add({{upper_x-upper_w-0.045f,y,wz},{0.045f,0.77f,0.68f},pane,false},false);
-                add({{upper_x+upper_w+0.045f,y,wz},{0.045f,0.77f,0.68f},pane,false},false);
+                const float left_x=upper_x-upper_w-0.045f;
+                const float right_x=upper_x+upper_w+0.045f;
+                add({{left_x,y,wz},{0.035f,0.86f,0.77f},window_frame,false},false);
+                add({{right_x,y,wz},{0.035f,0.86f,0.77f},window_frame,false},false);
+                add({{left_x-0.055f,y,wz},{0.045f,0.77f,0.68f},pane,false},false);
+                add({{right_x+0.055f,y,wz},{0.045f,0.77f,0.68f},pane,false},false);
             }
         }
 
