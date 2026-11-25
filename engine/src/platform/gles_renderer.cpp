@@ -179,7 +179,9 @@ void append_box(std::vector<float>&out,const Box&b){
     for(int face=0;face<6;++face){
         const Vec3 edge_a=p[f[face][1]]-p[f[face][0]];
         const Vec3 edge_b=p[f[face][2]]-p[f[face][0]];
-        const Vec3 normal=normalized_or(cross(edge_a,edge_b),{0,1,0});
+        // The legacy face index order is inward-facing; flip the cross product
+        // so diffuse/specular response uses the actual exterior of each box.
+        const Vec3 normal=normalized_or(cross(edge_b,edge_a),{0,1,0});
         for(int j=0;j<6;++j)
             append_lit_vertex(out,p[f[face][j]],normal,b.color);
     }
