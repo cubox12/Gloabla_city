@@ -57,11 +57,11 @@ Vec3 normalized_or(const Vec3&v,const Vec3&fallback){
     return length>1.0e-6f?Vec3{v.x/length,v.y/length,v.z/length}:fallback;
 }
 void append_lit_vertex(std::vector<float>&out,const Vec3&position,const Vec3&normal,const Color&color){
-    const Vec3 light=normalized_or({-0.42f,0.84f,0.34f},{0,1,0});
-    const float diffuse=std::max(0.0f,dot(normal,light));
-    const float shade=0.58f+0.42f*diffuse;
-    out.insert(out.end(),{position.x,position.y,position.z,
-        color.r*shade,color.g*shade,color.b*shade,color.a});
+    const Vec3 n=normalized_or(normal,{0,1,0});
+    // Position + world normal + linear albedo + alpha (10 floats per vertex).
+    // Lighting is evaluated per pixel in the GLES fragment shader.
+    out.insert(out.end(),{position.x,position.y,position.z,n.x,n.y,n.z,
+        color.r,color.g,color.b,color.a});
 }
 void append_ellipsoid(std::vector<float>&out,const Box&b){
     constexpr int rings=5;
@@ -149,7 +149,9 @@ void append_soft_box(std::vector<float>&out,const Box&b){
             std::max(-inner.z,std::min(inner.z,p.z))};
         const Vec3 delta=p-q;
         const Vec3 n=normalized_or(delta,fallback);
-        return std::pair<Vec3,Vec3>{b.center+q+n*bevel,n};
+        const Vec3 rotated=rotate_shape_vector(q+n*bevel,b.yaw,b.pitch);
+        const Vec3 world_normal=normalized_or(rotate_shape_vector(n,b.yaw,b.pitch),fallback);
+        return std::pair<Vec3,Vec3>{b.center+rotated,world_normal};
     };
     const std::array<Vec3,6> normals{{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}};
     for(int face=0;face<6;++face){
@@ -174,10 +176,12 @@ void append_box(std::vector<float>&out,const Box&b){
     const Vec3&c=b.center;const Vec3&h=b.half_extent;
     const std::array<Vec3,8>p={{{c.x-h.x,c.y-h.y,c.z-h.z},{c.x+h.x,c.y-h.y,c.z-h.z},{c.x+h.x,c.y+h.y,c.z-h.z},{c.x-h.x,c.y+h.y,c.z-h.z},{c.x-h.x,c.y-h.y,c.z+h.z},{c.x+h.x,c.y-h.y,c.z+h.z},{c.x+h.x,c.y+h.y,c.z+h.z},{c.x-h.x,c.y+h.y,c.z+h.z}}};
     constexpr int f[6][6]={{0,1,2,0,2,3},{5,4,7,5,7,6},{4,0,3,4,3,7},{1,5,6,1,6,2},{3,2,6,3,6,7},{4,5,1,4,1,0}};
-    constexpr float light[6]={.78f,.84f,.72f,.90f,1,.62f};
-    for(int face=0;face<6;++face)for(int j=0;j<6;++j){
-        const Vec3&v=p[f[face][j]];float k=light[face];
-        out.insert(out.end(),{v.x,v.y,v.z,b.color.r*k,b.color.g*k,b.color.b*k,b.color.a});
+    for(int face=0;face<6;++face){
+        const Vec3 edge_a=p[f[face][1]]-p[f[face][0]];
+        const Vec3 edge_b=p[f[face][2]]-p[f[face][0]];
+        const Vec3 normal=normalized_or(cross(edge_a,edge_b),{0,1,0});
+        for(int j=0;j<6;++j)
+            append_lit_vertex(out,p[f[face][j]],normal,b.color);
     }
 }
 std::size_t geometry_vertex_count(const Box&box){
@@ -190,10 +194,11 @@ std::size_t geometry_vertex_count(const Box&box){
     return 36U;
 }
 void attributes(){
-    constexpr GLsizei stride=static_cast<GLsizei>(7U*sizeof(float));
-    glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
+    constexpr GLsizei stride=static_cast<GLsizei>(10U*sizeof(float));
+    glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);glEnableVertexAttribArray(2);
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,stride,nullptr);
-    glVertexAttribPointer(1,4,GL_FLOAT,GL_FALSE,stride,reinterpret_cast<const void*>(3U*sizeof(float)));
+    glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,stride,reinterpret_cast<const void*>(3U*sizeof(float)));
+    glVertexAttribPointer(2,4,GL_FLOAT,GL_FALSE,stride,reinterpret_cast<const void*>(6U*sizeof(float)));
 }
 
 // Compact 5x7 bitmap font: 26 capitals followed by digits 0-9.
@@ -216,29 +221,56 @@ constexpr std::uint8_t kFont[36][7]={
 
 bool GlesRenderer::initialize(){
     static constexpr char vs[]=
-        "#version 300 es\n"
-        "layout(location=0) in vec3 aPosition;layout(location=1) in vec4 aColor;"
-        "uniform mat4 uMVP;uniform mat4 uView;out vec4 vColor;out float vFogDepth;out float vWorldHeight;out float vViewHeight;"
+        "#version 300 es\\n"
+        "layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aNormal;layout(location=2) in vec4 aColor;"
+        "uniform mat4 uMVP;uniform mat4 uView;"
+        "out vec4 vColor;out vec3 vNormal;out vec3 vWorldPosition;out vec3 vViewPosition;"
+        "out float vFogDepth;out float vViewHeight;"
         "void main(){vec4 p=vec4(aPosition,1.0);vec4 viewPosition=uView*p;gl_Position=uMVP*p;"
-        "vColor=aColor;vFogDepth=length(viewPosition.xyz);vWorldHeight=aPosition.y;vViewHeight=viewPosition.y;}\n";
+        "vColor=aColor;vNormal=aNormal;vWorldPosition=aPosition;vViewPosition=viewPosition.xyz;"
+        "vFogDepth=length(viewPosition.xyz);vViewHeight=viewPosition.y;}\\n";
     static constexpr char fs[]=
-        "#version 300 es\nprecision mediump float;in vec4 vColor;in float vFogDepth;in float vWorldHeight;in float vViewHeight;"
-        "out vec4 outColor;void main(){float fog=smoothstep(158.0,278.0,vFogDepth);"
-        "float sun=0.96+0.07*smoothstep(0.0,48.0,vWorldHeight);"
-        "vec3 lit=pow(max(vColor.rgb,vec3(0.0)),vec3(0.91))*sun;"
-        "vec3 warm=lit*vec3(1.055,1.025,0.985);"
-        "vec3 grade=(mix(lit,warm,0.42)-vec3(0.5))*1.12+vec3(0.5);"
+        "#version 300 es\\nprecision highp float;"
+        "in vec4 vColor;in vec3 vNormal;in vec3 vWorldPosition;in vec3 vViewPosition;"
+        "in float vFogDepth;in float vViewHeight;uniform float uLightingEnabled;uniform vec3 uCameraPosition;"
+        "out vec4 outColor;"
+        "float hash31(vec3 p){p=fract(p*0.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}"
+        "void main(){vec3 albedo=max(vColor.rgb,vec3(0.0));"
+        "if(uLightingEnabled>0.5){"
+        "float luminance=dot(albedo,vec3(0.2126,0.7152,0.0722));"
+        "float chroma=max(max(albedo.r,albedo.g),albedo.b)-min(min(albedo.r,albedo.g),albedo.b);"
+        "float asphalt=(1.0-smoothstep(0.19,0.34,luminance))*(1.0-smoothstep(0.07,0.16,chroma));"
+        "float vegetation=smoothstep(0.025,0.11,albedo.g-max(albedo.r,albedo.b));"
+        "float glass=smoothstep(0.045,0.17,albedo.b-max(albedo.r,albedo.g)*0.82)*(1.0-smoothstep(0.30,0.48,luminance));"
+        "float broadGrain=hash31(floor(vWorldPosition*vec3(8.0,19.0,8.0)));"
+        "float fineGrain=hash31(floor(vWorldPosition*vec3(43.0,71.0,43.0)));"
+        "float grainStrength=0.025+0.060*asphalt+0.028*vegetation;"
+        "albedo*=1.0+(broadGrain-0.5)*grainStrength*2.0+(fineGrain-0.5)*0.025;"
+        "vec3 N=normalize(vNormal);vec3 V=normalize(uCameraPosition-vWorldPosition);"
+        "vec3 L=normalize(vec3(-0.42,0.84,0.34));vec3 H=normalize(L+V);"
+        "float diffuse=max(dot(N,L),0.0);float hemisphere=clamp(0.5+0.5*N.y,0.0,1.0);"
+        "float roughness=mix(0.92,0.34,glass);float specularPower=mix(9.0,68.0,1.0-roughness);"
+        "float specular=pow(max(dot(N,H),0.0),specularPower)*(0.025+0.12*glass);"
+        "vec3 ambient=mix(vec3(0.19,0.205,0.22),vec3(0.34,0.38,0.42),hemisphere);"
+        "vec3 lit=albedo*(ambient+vec3(0.72)*diffuse)+vec3(specular);"
+        "float fresnel=pow(1.0-max(dot(N,V),0.0),5.0)*glass;"
+        "lit+=vec3(0.018,0.040,0.060)*fresnel;"
+        "float warmSurface=smoothstep(0.10,0.28,albedo.r-albedo.b)*smoothstep(0.08,0.24,albedo.g-albedo.b);"
+        "lit+=albedo*warmSurface*0.045;albedo=lit;}"
+        "float fog=smoothstep(158.0,278.0,vFogDepth);"
+        "vec3 grade=pow(max(albedo,vec3(0.0)),vec3(0.94));"
+        "grade=(grade-vec3(0.5))*1.08+vec3(0.5);"
         "float elevation=clamp(0.52+vViewHeight/max(vFogDepth,1.0)*1.65,0.0,1.0);"
         "vec3 horizon=vec3(0.78,0.84,0.87);vec3 zenith=vec3(0.27,0.49,0.70);"
         "vec3 sky=mix(horizon,zenith,smoothstep(0.05,0.94,elevation));"
         "float haze=mix(0.92,1.04,smoothstep(0.0,0.65,elevation));"
-        "sky*=haze;float luminance=dot(grade,vec3(0.2126,0.7152,0.0722));"
-        "grade=mix(vec3(luminance),grade,1.08);"
-        "outColor=vec4(mix(grade,sky,fog),vColor.a);}\n";
+        "sky*=haze;float finalLuminance=dot(grade,vec3(0.2126,0.7152,0.0722));"
+        "grade=mix(vec3(finalLuminance),grade,1.06);"
+        "outColor=vec4(mix(grade,sky,fog),vColor.a); }\\n";
     glClearColor(0.55f,0.72f,0.82f,1.0f);
     gpu_chunks_.reserve(25);
     dynamic_boxes_.reserve(144);
-    dynamic_vertices_.reserve(144U*240U*7U);
+    dynamic_vertices_.reserve(144U*240U*10U);
     hud_vertices_.reserve(36000U);
     control_vertices_.reserve(16000U);
     GLuint v=compile(GL_VERTEX_SHADER,vs);
@@ -267,6 +299,8 @@ bool GlesRenderer::initialize(){
     }
     mvp_location_=glGetUniformLocation(program_,"uMVP");
     view_location_=glGetUniformLocation(program_,"uView");
+    lighting_location_=glGetUniformLocation(program_,"uLightingEnabled");
+    camera_position_location_=glGetUniformLocation(program_,"uCameraPosition");
     glGenBuffers(1,&dynamic_vertex_buffer_);glGenBuffers(1,&hud_vertex_buffer_);glGenBuffers(1,&control_vertex_buffer_);
     glEnable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
@@ -294,14 +328,14 @@ void GlesRenderer::upload_chunk(const WorldChunk&src,GpuChunk&dst,bool high_deta
     std::vector<float>vertices;
     std::size_t required_vertices=0;
     for(const Box&box:boxes)required_vertices+=geometry_vertex_count(box);
-    vertices.reserve(required_vertices*7U);
+    vertices.reserve(required_vertices*10U);
     for(const Box&b:boxes)append_box(vertices,b);
     if(!buffer)glGenBuffers(1,&buffer);
     if(!buffer){count=0;return;}
     glBindBuffer(GL_ARRAY_BUFFER,buffer);
     glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(vertices.size()*sizeof(float)),
         vertices.data(),GL_STATIC_DRAW);
-    count=static_cast<GLsizei>(vertices.size()/7U);
+    count=static_cast<GLsizei>(vertices.size()/10U);
 }
 void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
     const int distance=std::max(0,static_cast<int>(world.mission_distance()+0.5f));
@@ -314,7 +348,7 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
         auto add_vertex=[&](float px,float py,const Color&color){
             const float x=2.0f*px/static_cast<float>(width_)-1.0f;
             const float y=1.0f-2.0f*py/static_cast<float>(height_);
-            hud_vertices_.insert(hud_vertices_.end(),{x,y,0.0f,color.r,color.g,color.b,color.a});
+            hud_vertices_.insert(hud_vertices_.end(),{x,y,0.0f,0.0f,0.0f,1.0f,color.r,color.g,color.b,color.a});
         };
         auto rect=[&](float x,float y,float w,float h,const Color&color){
             add_vertex(x,y,color);add_vertex(x+w,y,color);add_vertex(x+w,y+h,color);
@@ -360,7 +394,7 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
         draw_text("JOYSTICK IZQ  CAMARA DER",27,105,muted);
         hud_cached_width_=width_;hud_cached_height_=height_;
         hud_cached_distance_=distance;hud_cached_complete_=complete;hud_cached_stage_=stage;
-        hud_vertex_count_=static_cast<GLsizei>(hud_vertices_.size()/7U);
+        hud_vertex_count_=static_cast<GLsizei>(hud_vertices_.size()/10U);
         glBindBuffer(GL_ARRAY_BUFFER,hud_vertex_buffer_);
         glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(hud_vertices_.size()*sizeof(float)),
             hud_vertices_.data(),GL_STATIC_DRAW);
@@ -370,6 +404,7 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
     glUseProgram(program_);
     glUniformMatrix4fv(mvp_location_,1,GL_FALSE,hud_matrix.v.data());
     glUniformMatrix4fv(view_location_,1,GL_FALSE,hud_matrix.v.data());
+    glUniform1f(lighting_location_,0.0f);
     glBindBuffer(GL_ARRAY_BUFFER,hud_vertex_buffer_);attributes();
     if(hud_vertex_count_>0)glDrawArrays(GL_TRIANGLES,0,hud_vertex_count_);
 
@@ -379,7 +414,7 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
     auto add_control_vertex=[&](float px,float py,const Color&color){
         const float x=2.0f*px/static_cast<float>(width_)-1.0f;
         const float y=1.0f-2.0f*py/static_cast<float>(height_);
-        control_vertices_.insert(control_vertices_.end(),{x,y,0.0f,color.r,color.g,color.b,color.a});
+        control_vertices_.insert(control_vertices_.end(),{x,y,0.0f,0.0f,0.0f,1.0f,color.r,color.g,color.b,color.a});
     };
     auto disk=[&](float cx,float cy,float radius,const Color&color){
         constexpr int segments=32;
@@ -468,7 +503,7 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
         control_vertices_.data(),GL_STREAM_DRAW);
     attributes();
     if(!control_vertices_.empty())
-        glDrawArrays(GL_TRIANGLES,0,static_cast<GLsizei>(control_vertices_.size()/7U));
+        glDrawArrays(GL_TRIANGLES,0,static_cast<GLsizei>(control_vertices_.size()/10U));
     glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);
 }
 void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
@@ -496,6 +531,8 @@ void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
     glUseProgram(program_);
     glUniformMatrix4fv(mvp_location_,1,GL_FALSE,vp.v.data());
     glUniformMatrix4fv(view_location_,1,GL_FALSE,view.v.data());
+    glUniform1f(lighting_location_,1.0f);
+    glUniform3f(camera_position_location_,eye.x,eye.y,eye.z);
     for(const WorldChunk&chunk:chunks){
         const float dx=chunk.center_x-player.x,dz=chunk.center_z-player.z;
         const float distance_sq=dx*dx+dz*dz;
@@ -519,14 +556,14 @@ void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
     world.gather_dynamic_draw_boxes(dynamic_boxes_);dynamic_vertices_.clear();
     std::size_t required_vertices=0;
     for(const Box&box:dynamic_boxes_)required_vertices+=geometry_vertex_count(box);
-    const std::size_t required=required_vertices*7U;
+    const std::size_t required=required_vertices*10U;
     if(dynamic_vertices_.capacity()<required)dynamic_vertices_.reserve(required);
     for(const Box&b:dynamic_boxes_)append_box(dynamic_vertices_,b);
     glBindBuffer(GL_ARRAY_BUFFER,dynamic_vertex_buffer_);
     glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(dynamic_vertices_.size()*sizeof(float)),
         dynamic_vertices_.data(),GL_STREAM_DRAW);
     attributes();
-    const GLsizei dynamic_count=static_cast<GLsizei>(dynamic_vertices_.size()/7U);
+    const GLsizei dynamic_count=static_cast<GLsizei>(dynamic_vertices_.size()/10U);
     if(dynamic_count>0)glDrawArrays(GL_TRIANGLES,0,dynamic_count);
     draw_hud(world,camera);
 }
@@ -541,7 +578,7 @@ void GlesRenderer::shutdown(){
     if(control_vertex_buffer_)glDeleteBuffers(1,&control_vertex_buffer_);
     if(program_)glDeleteProgram(program_);
     dynamic_vertex_buffer_=0;hud_vertex_buffer_=0;control_vertex_buffer_=0;program_=0;
-    mvp_location_=-1;view_location_=-1;dynamic_boxes_.clear();
+    mvp_location_=-1;view_location_=-1;lighting_location_=-1;camera_position_location_=-1;dynamic_boxes_.clear();
     dynamic_vertices_.clear();hud_vertices_.clear();control_vertices_.clear();hud_vertex_count_=0;
     hud_cached_width_=0;hud_cached_height_=0;hud_cached_distance_=-1;hud_cached_stage_=-1;
 }
