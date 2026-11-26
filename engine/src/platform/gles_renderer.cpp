@@ -131,13 +131,13 @@ void append_cylinder(std::vector<float>&out,const Box&b){
 void append_tapered_limb(std::vector<float>&out,const Box&b){
     struct Profile {float y,r;};
     static constexpr std::array<Profile,7> profile{{
-        {-1.00f,0.10f},
-        {-0.88f,0.68f},
+        {-1.00f,0.55f},
+        {-0.88f,0.80f},
         {-0.62f,0.94f},
         { 0.08f,1.00f},
-        { 0.55f,0.87f},
-        { 0.88f,0.62f},
-        { 1.00f,0.10f}
+        { 0.55f,0.89f},
+        { 0.88f,0.76f},
+        { 1.00f,0.55f}
     }};
     constexpr int segments=20;
     constexpr float pi=3.14159265358979323846f;
