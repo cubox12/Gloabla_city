@@ -606,9 +606,9 @@ void GlesRenderer::draw_hud(const CityWorld&world,const CameraState&camera){
     glDepthMask(GL_TRUE);glEnable(GL_DEPTH_TEST);
 }
 void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
-    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     if(!program_||!dynamic_vertex_buffer_||!hud_vertex_buffer_)return;
-    const Vec3 player=world.player_position();const Vec3 target{player.x,1.0f,player.z};
+    const Vec3 player=world.player_position();
+    const Vec3 target{player.x,1.0f,player.z};
     const float horizontal=camera.distance*std::cos(camera.pitch);
     const Vec3 eye{target.x+std::sin(camera.yaw)*horizontal,
         target.y+std::sin(camera.pitch)*camera.distance,
@@ -617,21 +617,109 @@ void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
     const Mat4 vp=multiply(perspective(.92f,static_cast<float>(width_)/static_cast<float>(height_),.1f,360.0f),view);
     const auto planes=extract_planes(vp);
     const auto&chunks=world.active_chunks();
-    // Only GPU-resident sectors are kept; leaving the stream radius releases their buffers.
-    for(auto it=gpu_chunks_.begin();it!=gpu_chunks_.end();){
-        const bool exists=std::any_of(chunks.begin(),chunks.end(),
-            [&](const WorldChunk&c){return c.x==it->x&&c.z==it->z;});
-        if(!exists){
-            if(it->high_buffer)glDeleteBuffers(1,&it->high_buffer);
-            if(it->low_buffer)glDeleteBuffers(1,&it->low_buffer);
-            it=gpu_chunks_.erase(it);
-        }else ++it;
+
+    // Build both visible geometry and opaque shadow casters once per frame.
+    world.gather_dynamic_draw_boxes(dynamic_boxes_);
+    dynamic_vertices_.clear();
+    shadow_dynamic_vertices_.clear();
+    std::size_t required_vertices=0;
+    std::size_t shadow_required_vertices=0;
+    for(const Box&box:dynamic_boxes_){
+        required_vertices+=geometry_vertex_count(box);
+        if(box.color.a>=0.99f)shadow_required_vertices+=geometry_vertex_count(box);
     }
+    const std::size_t required=required_vertices*10U;
+    if(dynamic_vertices_.capacity()<required)dynamic_vertices_.reserve(required);
+    const std::size_t shadow_required=shadow_required_vertices*10U;
+    if(shadow_dynamic_vertices_.capacity()<shadow_required)
+        shadow_dynamic_vertices_.reserve(shadow_required);
+    for(const Box&box:dynamic_boxes_){
+        append_box(dynamic_vertices_,box);
+        // Transparent contact-shadow decals must not become solid shadow casters.
+        if(box.color.a>=0.99f)append_box(shadow_dynamic_vertices_,box);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER,dynamic_vertex_buffer_);
+    glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(dynamic_vertices_.size()*sizeof(float)),
+        dynamic_vertices_.data(),GL_STREAM_DRAW);
+
+    const Vec3 light_direction=normalize({-0.42f,0.84f,0.34f});
+    const Vec3 light_eye=target+light_direction*120.0f;
+    const Mat4 light_view=look_at(light_eye,target);
+    const Mat4 light_projection=orthographic(-108.0f,108.0f,-108.0f,108.0f,1.0f,280.0f);
+    const Mat4 light_mvp=multiply(light_projection,light_view);
+    const bool shadows_active=shadow_framebuffer_!=0&&shadow_depth_texture_!=0&&
+        shadow_program_!=0&&shadow_vertex_buffer_!=0;
+
+    // Directional depth pass. Chunks are uploaded lazily and share their LOD buffers
+    // with the color pass; only nearby sectors contribute to the 1024px shadow map.
+    if(shadows_active){
+        glBindFramebuffer(GL_FRAMEBUFFER,shadow_framebuffer_);
+        glViewport(0,0,1024,1024);
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.5f,2.5f);
+        glClearDepthf(1.0f);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        glUseProgram(shadow_program_);
+        glUniformMatrix4fv(shadow_mvp_location_,1,GL_FALSE,light_mvp.v.data());
+        for(const WorldChunk&chunk:chunks){
+            const float dx=chunk.center_x-player.x,dz=chunk.center_z-player.z;
+            const float distance_sq=dx*dx+dz*dz;
+            if(distance_sq>145.0f*145.0f)continue;
+            auto it=std::find_if(gpu_chunks_.begin(),gpu_chunks_.end(),
+                [&](const GpuChunk&g){return g.x==chunk.x&&g.z==chunk.z;});
+            if(it==gpu_chunks_.end()){
+                gpu_chunks_.push_back({});
+                it=std::prev(gpu_chunks_.end());
+                it->x=chunk.x;it->z=chunk.z;
+            }
+            const bool high_lod=distance_sq<105.0f*105.0f;
+            GLuint&buffer=high_lod?it->high_buffer:it->low_buffer;
+            GLsizei&count=high_lod?it->high_count:it->low_count;
+            if(buffer==0)upload_chunk(chunk,*it,high_lod);
+            if(count<=0)continue;
+            glBindBuffer(GL_ARRAY_BUFFER,buffer);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,
+                static_cast<GLsizei>(10U*sizeof(float)),nullptr);
+            glDrawArrays(GL_TRIANGLES,0,count);
+        }
+        if(!shadow_dynamic_vertices_.empty()){
+            glBindBuffer(GL_ARRAY_BUFFER,shadow_vertex_buffer_);
+            glBufferData(GL_ARRAY_BUFFER,
+                static_cast<GLsizeiptr>(shadow_dynamic_vertices_.size()*sizeof(float)),
+                shadow_dynamic_vertices_.data(),GL_STREAM_DRAW);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,
+                static_cast<GLsizei>(10U*sizeof(float)),nullptr);
+            glDrawArrays(GL_TRIANGLES,0,
+                static_cast<GLsizei>(shadow_dynamic_vertices_.size()/10U));
+        }
+        glDisable(GL_POLYGON_OFFSET_FILL);
+        glBindFramebuffer(GL_FRAMEBUFFER,0);
+        glViewport(0,0,width_,height_);
+        glEnable(GL_BLEND);
+    }
+
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     glUseProgram(program_);
     glUniformMatrix4fv(mvp_location_,1,GL_FALSE,vp.v.data());
     glUniformMatrix4fv(view_location_,1,GL_FALSE,view.v.data());
+    if(light_mvp_location_>=0)
+        glUniformMatrix4fv(light_mvp_location_,1,GL_FALSE,light_mvp.v.data());
     glUniform1f(lighting_location_,1.0f);
     glUniform3f(camera_position_location_,eye.x,eye.y,eye.z);
+    if(shadows_enabled_location_>=0)
+        glUniform1f(shadows_enabled_location_,shadows_active?1.0f:0.0f);
+    if(shadow_map_location_>=0){
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D,shadows_active?shadow_depth_texture_:0);
+        glUniform1i(shadow_map_location_,0);
+    }
+
+    // Color pass: camera-frustum culling and existing high/low detail selection.
     for(const WorldChunk&chunk:chunks){
         const float dx=chunk.center_x-player.x,dz=chunk.center_z-player.z;
         const float distance_sq=dx*dx+dz*dz;
@@ -640,27 +728,20 @@ void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
         auto it=std::find_if(gpu_chunks_.begin(),gpu_chunks_.end(),
             [&](const GpuChunk&g){return g.x==chunk.x&&g.z==chunk.z;});
         if(it==gpu_chunks_.end()){
-            gpu_chunks_.push_back({});it=std::prev(gpu_chunks_.end());
+            gpu_chunks_.push_back({});
+            it=std::prev(gpu_chunks_.end());
             it->x=chunk.x;it->z=chunk.z;
         }
         const bool high_lod=distance_sq<105.0f*105.0f;
         GLuint&buffer=high_lod?it->high_buffer:it->low_buffer;
         GLsizei&count=high_lod?it->high_count:it->low_count;
-        // Upload only the active LOD; the other detail level stays off GPU until needed.
         if(buffer==0)upload_chunk(chunk,*it,high_lod);
-        glBindBuffer(GL_ARRAY_BUFFER,buffer);attributes();
+        glBindBuffer(GL_ARRAY_BUFFER,buffer);
+        attributes();
         if(count>0)glDrawArrays(GL_TRIANGLES,0,count);
     }
 
-    world.gather_dynamic_draw_boxes(dynamic_boxes_);dynamic_vertices_.clear();
-    std::size_t required_vertices=0;
-    for(const Box&box:dynamic_boxes_)required_vertices+=geometry_vertex_count(box);
-    const std::size_t required=required_vertices*10U;
-    if(dynamic_vertices_.capacity()<required)dynamic_vertices_.reserve(required);
-    for(const Box&b:dynamic_boxes_)append_box(dynamic_vertices_,b);
     glBindBuffer(GL_ARRAY_BUFFER,dynamic_vertex_buffer_);
-    glBufferData(GL_ARRAY_BUFFER,static_cast<GLsizeiptr>(dynamic_vertices_.size()*sizeof(float)),
-        dynamic_vertices_.data(),GL_STREAM_DRAW);
     attributes();
     const GLsizei dynamic_count=static_cast<GLsizei>(dynamic_vertices_.size()/10U);
     if(dynamic_count>0)glDrawArrays(GL_TRIANGLES,0,dynamic_count);
