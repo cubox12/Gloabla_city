@@ -58,7 +58,7 @@ void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants
         if(length<1.0e-4f)return;
         const Vec3 center=(a+b)*0.5f;
         Box part{center,{radius,length*0.5f+radius*0.35f,radius*0.88f},color,false};
-        part.shape=GeometryShape::Ellipsoid;
+        part.shape=GeometryShape::TaperedLimb;
         part.yaw=std::atan2(delta.x,delta.z);
         part.pitch=std::atan2(horizontal,delta.y);
         out.push_back(part);
