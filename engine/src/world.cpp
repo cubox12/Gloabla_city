@@ -16,7 +16,7 @@ constexpr float kAcceleration=22.0f;
 constexpr int kChunkRadius=2;
 constexpr int kChunksPerAxis=64;
 constexpr float kMissionCompleteRadius=4.25f;
-constexpr std::size_t kDynamicBoxCount=144;
+constexpr std::size_t kDynamicBoxCount=256;
 float clamp_input(float v) noexcept { return std::max(-1.0f,std::min(1.0f,v)); }
 bool overlap(float a0,float a1,float b0,float b1) noexcept { return a0<b1&&a1>b0; }
 std::uint32_t hash_cell(int x,int z,int salt) noexcept {
@@ -28,9 +28,9 @@ std::uint32_t hash_cell(int x,int z,int salt) noexcept {
 float unit_random(std::uint32_t h) noexcept { return static_cast<float>(h&0x00ffffffU)/16777215.0f; }
 
 void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants,
-                      const Vec3& forward,float phase,float intensity,bool detailed_face=false) {
-    const Color skin{0.72f,0.52f,0.39f,1.0f};
-    const Color hair{0.075f,0.065f,0.055f,1.0f};
+                      const Vec3& forward,float phase,float intensity,bool detailed_face=false,
+                      Color skin={0.72f,0.52f,0.39f,1.0f},
+                      Color hair={0.075f,0.065f,0.055f,1.0f}) {
     const Color shoes{0.055f,0.062f,0.072f,1.0f};
     const float amount=std::max(0.0f,std::min(1.0f,intensity));
     const float forward_length=std::sqrt(forward.x*forward.x+forward.z*forward.z);
@@ -69,9 +69,12 @@ void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants
     ellipsoid({p.x,1.30f+bob,p.z},{0.255f,0.315f,0.165f},shirt);
     ellipsoid({p.x,1.60f+bob,p.z},{0.085f,0.105f,0.085f},skin);
     ellipsoid({p.x,1.78f+bob,p.z},{0.145f,0.18f,0.13f},skin);
+    // Rear hair mass and crown create a more natural head silhouette.
+    ellipsoid(p+Vec3{0,1.79f+bob,-0.045f},{0.139f,0.145f,0.112f},hair);
     ellipsoid({p.x,1.91f+bob,p.z},{0.148f,0.075f,0.134f},hair);
+    ellipsoid({p.x,1.535f+bob,p.z},{0.105f,0.055f,0.105f},shirt);
     if(detailed_face){
-        // Only the player carries close-up facial geometry; distant pedestrians stay cheaper.
+        // The protagonist and pedestrians share compact facial detail.
         const Color eye_white{0.91f,0.88f,0.78f,1.0f};
         const Color iris{0.22f,0.15f,0.10f,1.0f};
         const Color pupil{0.025f,0.022f,0.020f,1.0f};
@@ -458,6 +461,12 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     if(mission_stage_==MissionStage::DeliverPackage)
         out.push_back({{player_position_.x+0.30f,1.18f,player_position_.z-0.18f},
             {0.28f,0.25f,0.25f},{0.68f,0.43f,0.20f,1},false});
+    const std::array<Color,5> npc_skin{{
+        {0.72f,0.52f,0.39f,1},{0.48f,0.32f,0.23f,1},{0.83f,0.65f,0.51f,1},
+        {0.61f,0.42f,0.31f,1},{0.76f,0.57f,0.43f,1}}};
+    const std::array<Color,5> npc_hair{{
+        {0.055f,0.045f,0.040f,1},{0.16f,0.085f,0.035f,1},{0.10f,0.075f,0.055f,1},
+        {0.22f,0.17f,0.12f,1},{0.035f,0.030f,0.028f,1}}};
     for(int i=0;i<5;++i){
         const float phase=npc_elapsed_*0.18f+static_cast<float>(i)*1.25663706f;
         const float radius=23.0f+static_cast<float>(i%2)*3.0f;
@@ -467,7 +476,9 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
         const Color pants=(i%2==0)?Color{0.18f,0.20f,0.22f,1}:Color{0.30f,0.28f,0.23f,1};
         const Vec3 walking_forward{-std::sin(phase),0.0f,std::cos(phase)};
         contact_shadow({x,0.0f,z},0.42f,0.33f,0.27f);
-        append_humanoid(out,{x,0,z},shirt,pants,walking_forward,npc_elapsed_*6.2f+static_cast<float>(i)*1.4f,0.82f);
+        append_humanoid(out,{x,0,z},shirt,pants,walking_forward,
+            npc_elapsed_*6.2f+static_cast<float>(i)*1.4f,0.82f,true,
+            npc_skin[static_cast<std::size_t>(i)],npc_hair[static_cast<std::size_t>(i)]);
     }
 
     // Parked blue compact delivery car: body, cabin, front/rear glass and four tyres.
