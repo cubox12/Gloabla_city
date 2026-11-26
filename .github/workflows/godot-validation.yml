@@ -130,6 +130,7 @@ jobs:
             grep -F "GLES ready:" /tmp/global-city-beta-log.txt
             grep -E "Directional shadow map ready|Directional shadows disabled before framebuffer|Shadow map framebuffer unavailable|Directional shadows inactive" /tmp/global-city-beta-log.txt
             adb exec-out screencap -p > /tmp/global-city-beta-screen.png
+            cp /tmp/global-city-beta-screen.png "$GITHUB_WORKSPACE/global-city-beta-screen.png"
             python -m pip install --quiet pillow
             python -c 'from PIL import Image; im=Image.open("/tmp/global-city-beta-screen.png").convert("RGB"); w,h=im.size; p=list(im.crop((w//4,h//4,3*w//4,3*h//4)).getdata()); ratio=sum(1 for c in p if max(c)>20)/len(p); print(f"non-black center pixels: {ratio:.1%}"); assert ratio>0.05, "rendered frame is nearly black"'
       
@@ -138,5 +139,13 @@ jobs:
         with:
           name: global-city-beta-0.1-arm64-x86_64-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload emulator visual QA screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: global-city-beta-visual-qa
+          path: global-city-beta-screen.png
           if-no-files-found: error
           retention-days: 14
