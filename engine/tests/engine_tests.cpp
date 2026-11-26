@@ -121,6 +121,9 @@ int main(){
            part.half_extent.y==0.022f&&part.color.r<0.03f)++contact_shadows;
     }
     assert(contact_shadows==7);
+    std::size_t tapered_torsos=0;
+    for(const Box&part:dynamic)if(part.shape==GeometryShape::TaperedTorso)++tapered_torsos;
+    assert(tapered_torsos==6);
     std::size_t smooth_character_parts=0;
     for(const Box&part:dynamic)
         if(part.shape==GeometryShape::Ellipsoid)++smooth_character_parts;
