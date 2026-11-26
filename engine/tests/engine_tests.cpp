@@ -114,7 +114,7 @@ int main(){
 
     std::vector<global_engine::Box> dynamic;
     world.gather_dynamic_draw_boxes(dynamic);
-    assert(dynamic.size()==149);
+    assert(dynamic.size()==221);
     std::size_t contact_shadows=0;
     for(const Box&part:dynamic){
         if(part.shape==GeometryShape::Ellipsoid&&part.center.y==0.045f&&
@@ -124,7 +124,7 @@ int main(){
     std::size_t smooth_character_parts=0;
     for(const Box&part:dynamic)
         if(part.shape==GeometryShape::Ellipsoid)++smooth_character_parts;
-    assert(smooth_character_parts>=114);
+    assert(smooth_character_parts>=180);
     for(int i=0;i<120;++i)world.update(1.0f/60.0f,{1,0});
     assert(world.player_position().x>5.0f);
     assert(!world.player_intersects_building());
@@ -143,7 +143,7 @@ int main(){
     assert(world.mission_target().x==160.0f&&world.mission_target().z==-64.0f);
     std::vector<global_engine::Box> carrying;
     world.gather_dynamic_draw_boxes(carrying);
-    assert(carrying.size()==150);
+    assert(carrying.size()==222);
     for(int i=0;i<5000&&!world.mission_completed();++i){
         const auto&p=world.player_position();
         if(p.z>-64.0f+1.0f)world.update(1.0f/60.0f,{0.0f,-1.0f});
@@ -156,7 +156,7 @@ int main(){
 
     std::vector<global_engine::Box> all;
     world.gather_draw_boxes(all);
-    assert(all.size()==world.static_box_count()+149);
+    assert(all.size()==world.static_box_count()+221);
     std::cout<<"GLOBAL ENGINE CORE: PASS chunks="<<world.streaming_stats().active_chunks
         <<" buildings="<<world.building_count()<<" resident_boxes="<<world.static_box_count()
         <<" mission=delivered dynamic_boxes="<<dynamic.size()<<'\n';
