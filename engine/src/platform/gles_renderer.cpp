@@ -128,6 +128,53 @@ void append_cylinder(std::vector<float>&out,const Box&b){
         append_lit_vertex(out,p00,nb,b.color);
     }
 }
+void append_tapered_limb(std::vector<float>&out,const Box&b){
+    struct Profile {float y,r;};
+    static constexpr std::array<Profile,7> profile{{
+        {-1.00f,0.10f},
+        {-0.88f,0.68f},
+        {-0.62f,0.94f},
+        { 0.08f,1.00f},
+        { 0.55f,0.87f},
+        { 0.88f,0.62f},
+        { 1.00f,0.10f}
+    }};
+    constexpr int segments=20;
+    constexpr float pi=3.14159265358979323846f;
+    const Vec3&h=b.half_extent;
+    auto sample=[&](int ring,float angle){
+        const Profile&current=profile[static_cast<std::size_t>(ring)];
+        const Profile&before=profile[static_cast<std::size_t>(std::max(0,ring-1))];
+        const Profile&after=profile[static_cast<std::size_t>(std::min(
+            static_cast<int>(profile.size())-1,ring+1))];
+        const float dy=std::max(1.0e-4f,after.y-before.y);
+        const float slope=(after.r-before.r)/dy;
+        const float c=std::cos(angle),sn=std::sin(angle);
+        const float radius=std::max(0.001f,current.r);
+        const Vec3 local_position{c*h.x*radius,current.y*h.y,sn*h.z*radius};
+        const Vec3 local_normal=normalized_or({
+            c/std::max(1.0e-4f,h.x*radius),
+            -slope/std::max(1.0e-4f,h.y),
+            sn/std::max(1.0e-4f,h.z*radius)},{0,1,0});
+        return std::pair<Vec3,Vec3>{
+            b.center+rotate_shape_vector(local_position,b.yaw,b.pitch),
+            normalized_or(rotate_shape_vector(local_normal,b.yaw,b.pitch),{0,1,0})};
+    };
+    for(int ring=0;ring<static_cast<int>(profile.size())-1;++ring){
+        for(int segment=0;segment<segments;++segment){
+            const float a0=2.0f*pi*static_cast<float>(segment)/static_cast<float>(segments);
+            const float a1=2.0f*pi*static_cast<float>(segment+1)/static_cast<float>(segments);
+            const auto p00=sample(ring,a0),p01=sample(ring,a1);
+            const auto p10=sample(ring+1,a0),p11=sample(ring+1,a1);
+            append_lit_vertex(out,p00.first,p00.second,b.color);
+            append_lit_vertex(out,p10.first,p10.second,b.color);
+            append_lit_vertex(out,p11.first,p11.second,b.color);
+            append_lit_vertex(out,p00.first,p00.second,b.color);
+            append_lit_vertex(out,p11.first,p11.second,b.color);
+            append_lit_vertex(out,p01.first,p01.second,b.color);
+        }
+    }
+}
 void append_tapered_torso(std::vector<float>&out,const Box&b){
     struct Profile {float y,rx,rz;};
     static constexpr std::array<Profile,7> profile{{
@@ -222,6 +269,7 @@ void append_soft_box(std::vector<float>&out,const Box&b){
     }
 }
 void append_box(std::vector<float>&out,const Box&b){
+    if(b.shape==GeometryShape::TaperedLimb){append_tapered_limb(out,b);return;}
     if(b.shape==GeometryShape::TaperedTorso){append_tapered_torso(out,b);return;}
     if(b.shape==GeometryShape::Ellipsoid){append_ellipsoid(out,b);return;}
     if(b.shape==GeometryShape::Cylinder){append_cylinder(out,b);return;}
@@ -245,6 +293,7 @@ std::size_t geometry_vertex_count(const Box&box){
         case GeometryShape::Cylinder:return 192U;
         case GeometryShape::SoftBox:return 576U;
         case GeometryShape::TaperedTorso:return 720U;
+        case GeometryShape::TaperedLimb:return 720U;
         case GeometryShape::Box:return 36U;
     }
     return 36U;
