@@ -450,10 +450,17 @@ bool GlesRenderer::initialize(){
                 "Directional shadow map ready: %dx%d",shadow_size,shadow_size);
         }
         glBindFramebuffer(GL_FRAMEBUFFER,0);
+    }else{
+        __android_log_print(ANDROID_LOG_WARN,"GlobalEngine",
+            "Directional shadows disabled before framebuffer: program=%u uniforms=%d/%d/%d/%d",
+            shadow_program_,shadow_mvp_location_,light_mvp_location_,
+            shadow_map_location_,shadows_enabled_location_);
     }
     // Shadow mapping is optional on mobile GPUs. Drain setup errors and keep the
     // regular renderer usable when the depth target cannot be allocated.
     if(shadow_framebuffer_==0||shadow_depth_texture_==0){
+        __android_log_print(ANDROID_LOG_WARN,"GlobalEngine",
+            "Directional shadows inactive; contact shadows remain enabled");
         GLenum optional_error=GL_NO_ERROR;
         while((optional_error=glGetError())!=GL_NO_ERROR){
             __android_log_print(ANDROID_LOG_WARN,"GlobalEngine",
