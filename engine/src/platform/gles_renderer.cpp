@@ -471,7 +471,7 @@ bool GlesRenderer::initialize(){
     glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     const GLenum error=glGetError();
     if(dynamic_vertex_buffer_==0||hud_vertex_buffer_==0||control_vertex_buffer_==0||
-       mvp_location_<0||view_location_<0||light_mvp_location_<0||error!=GL_NO_ERROR){
+       mvp_location_<0||view_location_<0||error!=GL_NO_ERROR){
         __android_log_print(ANDROID_LOG_ERROR,"GlobalEngine",
             "Renderer resource setup failed: buffers=%u/%u/%u uniforms=%d/%d glError=0x%x",
             dynamic_vertex_buffer_,hud_vertex_buffer_,control_vertex_buffer_,
@@ -714,7 +714,8 @@ void GlesRenderer::render(const CityWorld&world,const CameraState&camera){
     const Mat4 light_projection=orthographic(-108.0f,108.0f,-108.0f,108.0f,1.0f,280.0f);
     const Mat4 light_mvp=multiply(light_projection,light_view);
     const bool shadows_active=shadow_framebuffer_!=0&&shadow_depth_texture_!=0&&
-        shadow_program_!=0&&shadow_vertex_buffer_!=0;
+        shadow_program_!=0&&shadow_vertex_buffer_!=0&&light_mvp_location_>=0&&
+        shadow_map_location_>=0&&shadows_enabled_location_>=0;
 
     // Directional depth pass. Chunks are uploaded lazily and share their LOD buffers
     // with the color pass; only nearby sectors contribute to the 1024px shadow map.
