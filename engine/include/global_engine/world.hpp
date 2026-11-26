@@ -11,7 +11,7 @@ struct Vec3 {
     Vec3 operator*(float scalar) const noexcept;
 };
 struct Color { float r{1.0f}, g{1.0f}, b{1.0f}, a{1.0f}; };
-enum class GeometryShape : std::uint8_t { Box, SoftBox, Ellipsoid, Cylinder, TaperedTorso };
+enum class GeometryShape : std::uint8_t { Box, SoftBox, Ellipsoid, Cylinder, TaperedTorso, TaperedLimb };
 struct Box {
     Vec3 center;
     Vec3 half_extent;
