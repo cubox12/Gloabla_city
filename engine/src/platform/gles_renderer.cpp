@@ -17,6 +17,11 @@ struct Plane{float x,y,z,w;};
 Mat4 identity(){Mat4 m;m.v[0]=m.v[5]=m.v[10]=m.v[15]=1;return m;}
 Mat4 multiply(const Mat4&a,const Mat4&b){Mat4 o;for(int c=0;c<4;++c)for(int r=0;r<4;++r){float s=0;for(int k=0;k<4;++k)s+=a.v[k*4+r]*b.v[c*4+k];o.v[c*4+r]=s;}return o;}
 Mat4 perspective(float fov,float aspect,float n,float f){Mat4 m;float t=1/std::tan(fov*.5f);m.v[0]=t/aspect;m.v[5]=t;m.v[10]=(f+n)/(n-f);m.v[11]=-1;m.v[14]=(2*f*n)/(n-f);return m;}
+Mat4 orthographic(float left,float right,float bottom,float top,float near_plane,float far_plane){
+    Mat4 m=identity();m.v[0]=2.0f/(right-left);m.v[5]=2.0f/(top-bottom);
+    m.v[10]=-2.0f/(far_plane-near_plane);m.v[12]=-(right+left)/(right-left);
+    m.v[13]=-(top+bottom)/(top-bottom);m.v[14]=-(far_plane+near_plane)/(far_plane-near_plane);return m;
+}
 Vec3 normalize(const Vec3&v){float l=std::sqrt(v.x*v.x+v.y*v.y+v.z*v.z);return l>1e-5f?Vec3{v.x/l,v.y/l,v.z/l}:Vec3{0,0,-1};}
 Vec3 cross(const Vec3&a,const Vec3&b){return{a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
 float dot(const Vec3&a,const Vec3&b){return a.x*b.x+a.y*b.y+a.z*b.z;}
@@ -224,16 +229,17 @@ bool GlesRenderer::initialize(){
     static constexpr char vs[]=
         "#version 300 es\n"
         "layout(location=0) in vec3 aPosition;layout(location=1) in vec3 aNormal;layout(location=2) in vec4 aColor;"
-        "uniform mat4 uMVP;uniform mat4 uView;"
-        "out vec4 vColor;out vec3 vNormal;out vec3 vWorldPosition;out vec3 vViewPosition;"
+        "uniform mat4 uMVP;uniform mat4 uView;uniform mat4 uLightMVP;"
+        "out vec4 vColor;out vec3 vNormal;out vec3 vWorldPosition;out vec3 vViewPosition;out vec4 vShadowPosition;"
         "out float vFogDepth;out float vViewHeight;"
-        "void main(){vec4 p=vec4(aPosition,1.0);vec4 viewPosition=uView*p;gl_Position=uMVP*p;"
+        "void main(){vec4 p=vec4(aPosition,1.0);vec4 viewPosition=uView*p;gl_Position=uMVP*p;vShadowPosition=uLightMVP*p;"
         "vColor=aColor;vNormal=aNormal;vWorldPosition=aPosition;vViewPosition=viewPosition.xyz;"
         "vFogDepth=length(viewPosition.xyz);vViewHeight=viewPosition.y;}\n";
     static constexpr char fs[]=
         "#version 300 es\nprecision highp float;"
-        "in vec4 vColor;in vec3 vNormal;in vec3 vWorldPosition;in vec3 vViewPosition;"
+        "in vec4 vColor;in vec3 vNormal;in vec3 vWorldPosition;in vec3 vViewPosition;in vec4 vShadowPosition;"
         "in float vFogDepth;in float vViewHeight;uniform float uLightingEnabled;uniform vec3 uCameraPosition;"
+        "uniform sampler2D uShadowMap;uniform float uShadowsEnabled;"
         "out vec4 outColor;"
         "float hash31(vec3 p){p=fract(p*0.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}"
         "void main(){vec3 albedo=max(vColor.rgb,vec3(0.0));"
@@ -265,8 +271,14 @@ bool GlesRenderer::initialize(){
         "float diffuse=max(dot(N,L),0.0);float hemisphere=clamp(0.5+0.5*N.y,0.0,1.0);"
         "float roughness=mix(0.94,0.28,glass);float specularPower=mix(8.0,76.0,1.0-roughness);"
         "float specular=pow(max(dot(N,H),0.0),specularPower)*(0.025+0.12*glass);"
-        "vec3 ambient=mix(vec3(0.19,0.205,0.22),vec3(0.34,0.38,0.42),hemisphere);"
-        "vec3 lit=albedo*(ambient+vec3(0.72)*diffuse)+vec3(specular);"
+        "float shadow=1.0;"
+        "if(uShadowsEnabled>0.5){vec3 sc=vShadowPosition.xyz/max(vShadowPosition.w,0.00001);sc=sc*0.5+0.5;"
+        "if(sc.x>0.002&&sc.x<0.998&&sc.y>0.002&&sc.y<0.998&&sc.z>0.0&&sc.z<1.0){"
+        "vec2 texel=1.0/vec2(textureSize(uShadowMap,0));float bias=max(0.00045,0.0018*(1.0-diffuse));float litSamples=0.0;"
+        "for(int y=-1;y<=1;++y)for(int x=-1;x<=1;++x){float stored=texture(uShadowMap,sc.xy+vec2(float(x),float(y))*texel).r;litSamples+=step(sc.z-bias,stored);}"
+        "shadow=litSamples/9.0;}}"
+        "vec3 ambient=mix(vec3(0.16,0.18,0.20),vec3(0.30,0.34,0.38),hemisphere);"
+        "vec3 lit=albedo*(ambient+vec3(0.78)*diffuse*mix(0.30,1.0,shadow))+vec3(specular*mix(0.42,1.0,shadow));"
         "float fresnel=pow(1.0-max(dot(N,V),0.0),5.0)*glass;"
         "lit+=vec3(0.018,0.040,0.060)*fresnel;"
         "float warmSurface=smoothstep(0.10,0.28,albedo.r-albedo.b)*smoothstep(0.08,0.24,albedo.g-albedo.b);"
@@ -285,6 +297,7 @@ bool GlesRenderer::initialize(){
     gpu_chunks_.reserve(25);
     dynamic_boxes_.reserve(224);
     dynamic_vertices_.reserve(224U*960U*10U);
+    shadow_dynamic_vertices_.reserve(224U*960U*10U);
     hud_vertices_.reserve(36000U);
     control_vertices_.reserve(16000U);
     GLuint v=compile(GL_VERTEX_SHADER,vs);
