@@ -66,7 +66,14 @@ void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants
 
     // Pelvis, chest, neck, head and hair create a readable human silhouette.
     ellipsoid({p.x,0.99f+bob,p.z},{0.215f,0.16f,0.145f},pants);
-    ellipsoid({p.x,1.30f+bob,p.z},{0.255f,0.315f,0.165f},shirt);
+    const float body_yaw=std::atan2(f.x,f.z);
+    Box torso{{p.x,1.30f+bob,p.z},{0.255f,0.315f,0.165f},shirt,false};
+    torso.shape=GeometryShape::TaperedTorso;
+    torso.yaw=body_yaw;
+    out.push_back(torso);
+    // Rounded deltoids soften the gap between chest and upper arms.
+    ellipsoid(p+right*(-0.22f)+Vec3{0,1.47f+bob,0},{0.13f,0.13f,0.145f},shirt,body_yaw);
+    ellipsoid(p+right*0.22f+Vec3{0,1.47f+bob,0},{0.13f,0.13f,0.145f},shirt,body_yaw);
     ellipsoid({p.x,1.60f+bob,p.z},{0.085f,0.105f,0.085f},skin);
     ellipsoid({p.x,1.78f+bob,p.z},{0.145f,0.18f,0.13f},skin);
     // Rear hair mass and crown create a more natural head silhouette.
@@ -467,13 +474,19 @@ void CityWorld::append_dynamic_draw_boxes(std::vector<Box>&out)const{
     const std::array<Color,5> npc_hair{{
         {0.055f,0.045f,0.040f,1},{0.16f,0.085f,0.035f,1},{0.10f,0.075f,0.055f,1},
         {0.22f,0.17f,0.12f,1},{0.035f,0.030f,0.028f,1}}};
+    const std::array<Color,5> npc_shirts{{
+        {0.42f,0.20f,0.14f,1},{0.14f,0.25f,0.34f,1},{0.38f,0.40f,0.32f,1},
+        {0.42f,0.39f,0.34f,1},{0.22f,0.25f,0.29f,1}}};
+    const std::array<Color,5> npc_pants{{
+        {0.14f,0.16f,0.18f,1},{0.26f,0.24f,0.20f,1},{0.20f,0.23f,0.25f,1},
+        {0.32f,0.27f,0.22f,1},{0.16f,0.16f,0.17f,1}}};
     for(int i=0;i<5;++i){
         const float phase=npc_elapsed_*0.18f+static_cast<float>(i)*1.25663706f;
         const float radius=23.0f+static_cast<float>(i%2)*3.0f;
         const float x=player_position_.x+std::cos(phase)*radius;
         const float z=player_position_.z+std::sin(phase)*radius;
-        const Color shirt=(i%2==0)?Color{0.68f,0.30f,0.18f,1}:Color{0.12f,0.35f,0.55f,1};
-        const Color pants=(i%2==0)?Color{0.18f,0.20f,0.22f,1}:Color{0.30f,0.28f,0.23f,1};
+        const Color shirt=npc_shirts[static_cast<std::size_t>(i)];
+        const Color pants=npc_pants[static_cast<std::size_t>(i)];
         const Vec3 walking_forward{-std::sin(phase),0.0f,std::cos(phase)};
         contact_shadow({x,0.0f,z},0.42f,0.33f,0.27f);
         append_humanoid(out,{x,0,z},shirt,pants,walking_forward,
