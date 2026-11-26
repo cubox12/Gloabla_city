@@ -70,7 +70,7 @@ void append_humanoid(std::vector<Box>& out,const Vec3& p,Color shirt,Color pants
     ellipsoid({p.x,1.60f+bob,p.z},{0.085f,0.105f,0.085f},skin);
     ellipsoid({p.x,1.78f+bob,p.z},{0.145f,0.18f,0.13f},skin);
     // Rear hair mass and crown create a more natural head silhouette.
-    ellipsoid(p+Vec3{0,1.79f+bob,-0.045f},{0.139f,0.145f,0.112f},hair);
+    ellipsoid(p-f*0.045f+Vec3{0,1.79f+bob,0},{0.139f,0.145f,0.112f},hair);
     ellipsoid({p.x,1.91f+bob,p.z},{0.148f,0.075f,0.134f},hair);
     ellipsoid({p.x,1.535f+bob,p.z},{0.105f,0.055f,0.105f},shirt);
     if(detailed_face){
