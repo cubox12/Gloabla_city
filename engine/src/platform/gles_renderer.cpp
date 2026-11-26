@@ -178,7 +178,7 @@ void append_tapered_torso(std::vector<float>&out,const Box&b){
 }
 void append_soft_box(std::vector<float>&out,const Box&b){
     const Vec3&h=b.half_extent;
-    const float bevel=std::min({h.x,h.y,h.z})*0.085f;
+    const float bevel=std::min(0.075f,std::min({h.x,h.y,h.z})*0.085f);
     const Vec3 inner{std::max(0.001f,h.x-bevel),std::max(0.001f,h.y-bevel),
         std::max(0.001f,h.z-bevel)};
     // Four subdivisions per face keep bevel normals smooth on close building and car silhouettes.
