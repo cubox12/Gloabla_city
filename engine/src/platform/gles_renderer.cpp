@@ -326,9 +326,81 @@ bool GlesRenderer::initialize(){
     }
     mvp_location_=glGetUniformLocation(program_,"uMVP");
     view_location_=glGetUniformLocation(program_,"uView");
+    light_mvp_location_=glGetUniformLocation(program_,"uLightMVP");
     lighting_location_=glGetUniformLocation(program_,"uLightingEnabled");
     camera_position_location_=glGetUniformLocation(program_,"uCameraPosition");
-    glGenBuffers(1,&dynamic_vertex_buffer_);glGenBuffers(1,&hud_vertex_buffer_);glGenBuffers(1,&control_vertex_buffer_);
+    shadow_map_location_=glGetUniformLocation(program_,"uShadowMap");
+    shadows_enabled_location_=glGetUniformLocation(program_,"uShadowsEnabled");
+
+    static constexpr char shadow_vs[]=
+        "#version 300 es\n"
+        "layout(location=0) in vec3 aPosition;uniform mat4 uShadowMVP;"
+        "void main(){gl_Position=uShadowMVP*vec4(aPosition,1.0);}\n";
+    static constexpr char shadow_fs[]=
+        "#version 300 es\nprecision highp float;void main(){}\n";
+    const GLuint shadow_v=compile(GL_VERTEX_SHADER,shadow_vs);
+    const GLuint shadow_f=compile(GL_FRAGMENT_SHADER,shadow_fs);
+    if(shadow_v&&shadow_f){
+        shadow_program_=glCreateProgram();
+        if(shadow_program_){
+            glAttachShader(shadow_program_,shadow_v);
+            glAttachShader(shadow_program_,shadow_f);
+            glLinkProgram(shadow_program_);
+            GLint shadow_linked=0;
+            glGetProgramiv(shadow_program_,GL_LINK_STATUS,&shadow_linked);
+            if(shadow_linked!=GL_TRUE){
+                GLint log_size=0;
+                glGetProgramiv(shadow_program_,GL_INFO_LOG_LENGTH,&log_size);
+                std::string log(static_cast<std::size_t>(std::max(1,log_size)),'\0');
+                glGetProgramInfoLog(shadow_program_,log_size,nullptr,log.data());
+                __android_log_print(ANDROID_LOG_WARN,"GlobalEngine",
+                    "Shadow program unavailable: %s",log.c_str());
+                glDeleteProgram(shadow_program_);
+                shadow_program_=0;
+            }
+        }
+    }
+    if(shadow_v)glDeleteShader(shadow_v);
+    if(shadow_f)glDeleteShader(shadow_f);
+    if(shadow_program_)shadow_mvp_location_=glGetUniformLocation(shadow_program_,"uShadowMVP");
+
+    glGenBuffers(1,&dynamic_vertex_buffer_);
+    glGenBuffers(1,&shadow_vertex_buffer_);
+    glGenBuffers(1,&hud_vertex_buffer_);
+    glGenBuffers(1,&control_vertex_buffer_);
+
+    constexpr GLsizei shadow_size=1024;
+    if(shadow_program_&&shadow_mvp_location_>=0&&light_mvp_location_>=0&&
+       shadow_map_location_>=0&&shadows_enabled_location_>=0){
+        glGenTextures(1,&shadow_depth_texture_);
+        glBindTexture(GL_TEXTURE_2D,shadow_depth_texture_);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_DEPTH_COMPONENT24,shadow_size,shadow_size,0,
+            GL_DEPTH_COMPONENT,GL_UNSIGNED_INT,nullptr);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_COMPARE_MODE,GL_NONE);
+        glGenFramebuffers(1,&shadow_framebuffer_);
+        glBindFramebuffer(GL_FRAMEBUFFER,shadow_framebuffer_);
+        glFramebufferTexture2D(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_TEXTURE_2D,
+            shadow_depth_texture_,0);
+        const GLenum no_color_buffers=GL_NONE;
+        glDrawBuffers(1,&no_color_buffers);
+        glReadBuffer(GL_NONE);
+        if(glCheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE){
+            __android_log_print(ANDROID_LOG_WARN,"GlobalEngine",
+                "Shadow map framebuffer unavailable; using unshadowed lighting");
+            glDeleteFramebuffers(1,&shadow_framebuffer_);
+            glDeleteTextures(1,&shadow_depth_texture_);
+            shadow_framebuffer_=0;
+            shadow_depth_texture_=0;
+        }else{
+            __android_log_print(ANDROID_LOG_INFO,"GlobalEngine",
+                "Directional shadow map ready: %dx%d",shadow_size,shadow_size);
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER,0);
+    }
     glEnable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     const GLenum error=glGetError();
