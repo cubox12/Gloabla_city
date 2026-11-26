@@ -275,8 +275,8 @@ bool GlesRenderer::initialize(){
         "if(uShadowsEnabled>0.5){vec3 sc=vShadowPosition.xyz/max(vShadowPosition.w,0.00001);sc=sc*0.5+0.5;"
         "if(sc.x>0.002&&sc.x<0.998&&sc.y>0.002&&sc.y<0.998&&sc.z>0.0&&sc.z<1.0){"
         "vec2 texel=1.0/vec2(textureSize(uShadowMap,0));float bias=max(0.00045,0.0018*(1.0-diffuse));float litSamples=0.0;"
-        "for(int y=-1;y<=1;++y)for(int x=-1;x<=1;++x){float stored=texture(uShadowMap,sc.xy+vec2(float(x),float(y))*texel).r;litSamples+=step(sc.z-bias,stored);}"
-        "shadow=litSamples/9.0;}}"
+        "for(int y=0;y<2;++y)for(int x=0;x<2;++x){vec2 offset=(vec2(float(x),float(y))-vec2(0.5))*texel;float stored=texture(uShadowMap,sc.xy+offset).r;litSamples+=step(sc.z-bias,stored);}"
+        "shadow=litSamples*0.25;}}"
         "vec3 ambient=mix(vec3(0.16,0.18,0.20),vec3(0.30,0.34,0.38),hemisphere);"
         "vec3 lit=albedo*(ambient+vec3(0.78)*diffuse*mix(0.30,1.0,shadow))+vec3(specular*mix(0.42,1.0,shadow));"
         "float fresnel=pow(1.0-max(dot(N,V),0.0),5.0)*glass;"
@@ -401,11 +401,20 @@ bool GlesRenderer::initialize(){
         }
         glBindFramebuffer(GL_FRAMEBUFFER,0);
     }
+    // Shadow mapping is optional on mobile GPUs. Drain setup errors and keep the
+    // regular renderer usable when the depth target cannot be allocated.
+    if(shadow_framebuffer_==0||shadow_depth_texture_==0){
+        GLenum optional_error=GL_NO_ERROR;
+        while((optional_error=glGetError())!=GL_NO_ERROR){
+            __android_log_print(ANDROID_LOG_WARN,"GlobalEngine",
+                "Ignoring optional shadow setup error: 0x%x",static_cast<unsigned>(optional_error));
+        }
+    }
     glEnable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     const GLenum error=glGetError();
     if(dynamic_vertex_buffer_==0||hud_vertex_buffer_==0||control_vertex_buffer_==0||
-       mvp_location_<0||view_location_<0||error!=GL_NO_ERROR){
+       mvp_location_<0||view_location_<0||light_mvp_location_<0||error!=GL_NO_ERROR){
         __android_log_print(ANDROID_LOG_ERROR,"GlobalEngine",
             "Renderer resource setup failed: buffers=%u/%u/%u uniforms=%d/%d glError=0x%x",
             dynamic_vertex_buffer_,hud_vertex_buffer_,control_vertex_buffer_,
