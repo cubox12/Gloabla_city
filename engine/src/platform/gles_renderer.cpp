@@ -64,8 +64,8 @@ void append_lit_vertex(std::vector<float>&out,const Vec3&position,const Vec3&nor
         color.r,color.g,color.b,color.a});
 }
 void append_ellipsoid(std::vector<float>&out,const Box&b){
-    constexpr int rings=5;
-    constexpr int segments=8;
+    constexpr int rings=10;
+    constexpr int segments=16;
     const float pi=3.14159265358979323846f;
     auto sample=[&](float theta,float phi){
         const Vec3 n{std::sin(theta)*std::cos(phi),std::cos(theta),std::sin(theta)*std::sin(phi)};
@@ -94,7 +94,7 @@ void append_ellipsoid(std::vector<float>&out,const Box&b){
     }
 }
 void append_cylinder(std::vector<float>&out,const Box&b){
-    constexpr int segments=8;
+    constexpr int segments=16;
     const float pi=3.14159265358979323846f;
     auto point=[&](float angle,float y){
         const Vec3 local{std::cos(angle)*b.half_extent.x,y*b.half_extent.y,
@@ -128,11 +128,10 @@ void append_soft_box(std::vector<float>&out,const Box&b){
     const float bevel=std::min({h.x,h.y,h.z})*0.085f;
     const Vec3 inner{std::max(0.001f,h.x-bevel),std::max(0.001f,h.y-bevel),
         std::max(0.001f,h.z-bevel)};
-    // Two subdivisions per face retain rounded edges at one quarter of the
-    // previous vertex count, which matters when 25 sectors keep two LODs.
-    const std::array<float,3> gx{{-1.0f,0.0f,1.0f}};
-    const std::array<float,3> gy{{-1.0f,0.0f,1.0f}};
-    const std::array<float,3> gz{{-1.0f,0.0f,1.0f}};
+    // Four subdivisions per face keep bevel normals smooth on close building and car silhouettes.
+    const std::array<float,5> gx{{-1.0f,-0.5f,0.0f,0.5f,1.0f}};
+    const std::array<float,5> gy{{-1.0f,-0.5f,0.0f,0.5f,1.0f}};
+    const std::array<float,5> gz{{-1.0f,-0.5f,0.0f,0.5f,1.0f}};
     auto face_point=[&](int face,int row,int col){
         switch(face){
             case 0:return Vec3{ h.x,gy[row]*h.y,gz[col]*h.z};
@@ -155,7 +154,7 @@ void append_soft_box(std::vector<float>&out,const Box&b){
     };
     const std::array<Vec3,6> normals{{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}};
     for(int face=0;face<6;++face){
-        for(int row=0;row<2;++row)for(int col=0;col<2;++col){
+        for(int row=0;row<4;++row)for(int col=0;col<4;++col){
             const auto p00=rounded(face_point(face,row,col),normals[face]);
             const auto p10=rounded(face_point(face,row,col+1),normals[face]);
             const auto p11=rounded(face_point(face,row+1,col+1),normals[face]);
@@ -188,9 +187,9 @@ void append_box(std::vector<float>&out,const Box&b){
 }
 std::size_t geometry_vertex_count(const Box&box){
     switch(box.shape){
-        case GeometryShape::Ellipsoid:return 240U;
-        case GeometryShape::Cylinder:return 96U;
-        case GeometryShape::SoftBox:return 144U;
+        case GeometryShape::Ellipsoid:return 960U;
+        case GeometryShape::Cylinder:return 192U;
+        case GeometryShape::SoftBox:return 576U;
         case GeometryShape::Box:return 36U;
     }
     return 36U;
@@ -241,17 +240,30 @@ bool GlesRenderer::initialize(){
         "if(uLightingEnabled>0.5){"
         "float luminance=dot(albedo,vec3(0.2126,0.7152,0.0722));"
         "float chroma=max(max(albedo.r,albedo.g),albedo.b)-min(min(albedo.r,albedo.g),albedo.b);"
+        "vec3 N=normalize(vNormal);"
         "float asphalt=(1.0-smoothstep(0.19,0.34,luminance))*(1.0-smoothstep(0.07,0.16,chroma));"
         "float vegetation=smoothstep(0.025,0.11,albedo.g-max(albedo.r,albedo.b));"
-        "float glass=smoothstep(0.045,0.17,albedo.b-max(albedo.r,albedo.g)*0.82)*(1.0-smoothstep(0.30,0.48,luminance));"
+        "float glass=smoothstep(0.20,0.31,albedo.g)*smoothstep(0.015,0.075,albedo.b-albedo.g)*(1.0-smoothstep(0.31,0.48,luminance));"
+        "float verticalSurface=1.0-smoothstep(0.18,0.55,abs(N.y));"
+        "float wall=verticalSurface*smoothstep(0.42,0.56,luminance)*(1.0-smoothstep(0.09,0.22,chroma));"
+        "vec2 wallUV=abs(N.x)>abs(N.z)?vWorldPosition.zy:vWorldPosition.xy;"
+        "float panelU=fract(wallUV.x/6.0);float panelV=fract(vWorldPosition.y/3.05);"
+        "float jointU=1.0-smoothstep(0.0,0.022,min(panelU,1.0-panelU));"
+        "float jointV=1.0-smoothstep(0.0,0.018,min(panelV,1.0-panelV));"
+        "float plaster=hash31(floor(vec3(wallUV.x*1.7,vWorldPosition.y*1.7,wallUV.x*0.37)));"
+        "float asphaltPatch=hash31(floor(vWorldPosition*vec3(0.72,1.0,0.72)));"
+        "float foliageGrain=hash31(floor(vWorldPosition*vec3(15.0,13.0,15.0)));"
         "float broadGrain=hash31(floor(vWorldPosition*vec3(8.0,19.0,8.0)));"
         "float fineGrain=hash31(floor(vWorldPosition*vec3(43.0,71.0,43.0)));"
         "float grainStrength=0.025+0.060*asphalt+0.028*vegetation;"
         "albedo*=1.0+(broadGrain-0.5)*grainStrength*2.0+(fineGrain-0.5)*0.025;"
-        "vec3 N=normalize(vNormal);vec3 V=normalize(uCameraPosition-vWorldPosition);"
+        "albedo*=1.0+wall*((plaster-0.5)*0.105-jointU*0.045-jointV*0.055);"
+        "albedo*=1.0+asphalt*(asphaltPatch-0.5)*0.075;"
+        "albedo*=1.0+vegetation*(foliageGrain-0.5)*0.11;"
+        "vec3 V=normalize(uCameraPosition-vWorldPosition);"
         "vec3 L=normalize(vec3(-0.42,0.84,0.34));vec3 H=normalize(L+V);"
         "float diffuse=max(dot(N,L),0.0);float hemisphere=clamp(0.5+0.5*N.y,0.0,1.0);"
-        "float roughness=mix(0.92,0.34,glass);float specularPower=mix(9.0,68.0,1.0-roughness);"
+        "float roughness=mix(0.94,0.28,glass);float specularPower=mix(8.0,76.0,1.0-roughness);"
         "float specular=pow(max(dot(N,H),0.0),specularPower)*(0.025+0.12*glass);"
         "vec3 ambient=mix(vec3(0.19,0.205,0.22),vec3(0.34,0.38,0.42),hemisphere);"
         "vec3 lit=albedo*(ambient+vec3(0.72)*diffuse)+vec3(specular);"
@@ -272,7 +284,7 @@ bool GlesRenderer::initialize(){
     glClearColor(0.55f,0.72f,0.82f,1.0f);
     gpu_chunks_.reserve(25);
     dynamic_boxes_.reserve(224);
-    dynamic_vertices_.reserve(224U*240U*10U);
+    dynamic_vertices_.reserve(224U*960U*10U);
     hud_vertices_.reserve(36000U);
     control_vertices_.reserve(16000U);
     GLuint v=compile(GL_VERTEX_SHADER,vs);
