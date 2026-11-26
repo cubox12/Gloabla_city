@@ -754,12 +754,20 @@ void GlesRenderer::shutdown(){
     }
     gpu_chunks_.clear();
     if(dynamic_vertex_buffer_)glDeleteBuffers(1,&dynamic_vertex_buffer_);
+    if(shadow_vertex_buffer_)glDeleteBuffers(1,&shadow_vertex_buffer_);
     if(hud_vertex_buffer_)glDeleteBuffers(1,&hud_vertex_buffer_);
     if(control_vertex_buffer_)glDeleteBuffers(1,&control_vertex_buffer_);
+    if(shadow_framebuffer_)glDeleteFramebuffers(1,&shadow_framebuffer_);
+    if(shadow_depth_texture_)glDeleteTextures(1,&shadow_depth_texture_);
     if(program_)glDeleteProgram(program_);
-    dynamic_vertex_buffer_=0;hud_vertex_buffer_=0;control_vertex_buffer_=0;program_=0;
-    mvp_location_=-1;view_location_=-1;lighting_location_=-1;camera_position_location_=-1;dynamic_boxes_.clear();
-    dynamic_vertices_.clear();hud_vertices_.clear();control_vertices_.clear();hud_vertex_count_=0;
+    if(shadow_program_)glDeleteProgram(shadow_program_);
+    dynamic_vertex_buffer_=0;shadow_vertex_buffer_=0;hud_vertex_buffer_=0;control_vertex_buffer_=0;
+    shadow_framebuffer_=0;shadow_depth_texture_=0;program_=0;shadow_program_=0;
+    mvp_location_=-1;view_location_=-1;light_mvp_location_=-1;
+    lighting_location_=-1;camera_position_location_=-1;shadow_mvp_location_=-1;
+    shadow_map_location_=-1;shadows_enabled_location_=-1;dynamic_boxes_.clear();
+    dynamic_vertices_.clear();shadow_dynamic_vertices_.clear();hud_vertices_.clear();
+    control_vertices_.clear();hud_vertex_count_=0;
     hud_cached_width_=0;hud_cached_height_=0;hud_cached_distance_=-1;hud_cached_stage_=-1;
 }
 } // namespace global_engine::platform
