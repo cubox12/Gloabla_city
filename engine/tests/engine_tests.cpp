@@ -121,13 +121,17 @@ int main(){
            part.half_extent.y==0.022f&&part.color.r<0.03f)++contact_shadows;
     }
     assert(contact_shadows==7);
-    std::size_t tapered_torsos=0;
-    for(const Box&part:dynamic)if(part.shape==GeometryShape::TaperedTorso)++tapered_torsos;
+    std::size_t tapered_torsos=0,tapered_limbs=0;
+    for(const Box&part:dynamic){
+        if(part.shape==GeometryShape::TaperedTorso)++tapered_torsos;
+        if(part.shape==GeometryShape::TaperedLimb)++tapered_limbs;
+    }
     assert(tapered_torsos==6);
+    assert(tapered_limbs==48);
     std::size_t smooth_character_parts=0;
     for(const Box&part:dynamic)
         if(part.shape==GeometryShape::Ellipsoid)++smooth_character_parts;
-    assert(smooth_character_parts>=180);
+    assert(smooth_character_parts>=140);
     for(int i=0;i<120;++i)world.update(1.0f/60.0f,{1,0});
     assert(world.player_position().x>5.0f);
     assert(!world.player_intersects_building());
