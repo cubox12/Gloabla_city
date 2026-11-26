@@ -299,7 +299,7 @@ bool GlesRenderer::initialize(){
         "vec3 N=normalize(vNormal);"
         "float asphalt=(1.0-smoothstep(0.19,0.34,luminance))*(1.0-smoothstep(0.07,0.16,chroma));"
         "float vegetation=smoothstep(0.025,0.11,albedo.g-max(albedo.r,albedo.b));"
-        "float glass=smoothstep(0.20,0.31,albedo.g)*smoothstep(0.015,0.075,albedo.b-albedo.g)*(1.0-smoothstep(0.31,0.48,luminance));"
+        "float glass=smoothstep(0.20,0.31,albedo.g)*smoothstep(0.015,0.075,albedo.b-albedo.g)*(1.0-smoothstep(0.11,0.24,albedo.b-albedo.g))*(1.0-smoothstep(0.31,0.48,luminance));"
         "float verticalSurface=1.0-smoothstep(0.18,0.55,abs(N.y));"
         "float wall=verticalSurface*smoothstep(0.42,0.56,luminance)*(1.0-smoothstep(0.09,0.22,chroma));"
         "vec2 wallUV=abs(N.x)>abs(N.z)?vWorldPosition.zy:vWorldPosition.xy;"
